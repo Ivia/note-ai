@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { callClaude, friendlyError } from '../lib/claude'
 import { buildSinglePostPrompt, STYLE_PRESETS } from '../lib/prompts/singlePost'
-import SectionBlock from '../components/SectionBlock'
+import ResultModal from '../components/ResultModal'
 import { useNavigate } from 'react-router-dom'
 
 interface Sections {
@@ -35,23 +35,24 @@ export default function SinglePost() {
   const [customStyle, setCustomStyle] = useState('')
   const [reference, setReference] = useState('')
 
+  const [modalOpen, setModalOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [rawOutput, setRawOutput] = useState('')
   const [error, setError] = useState('')
   const [savedToHistory, setSavedToHistory] = useState(false)
 
-  const canGenerate = !generating && apiKey && topic.trim() && selling.trim()
+  const canGenerate = !generating && !!apiKey && topic.trim() !== '' && selling.trim() !== ''
   const sections = rawOutput ? parseSections(rawOutput) : null
   const effectiveStyle = style === '自由发挥' ? (customStyle || '自由发挥') : style
 
-  async function handleGenerate() {
-    if (!canGenerate) return
+  async function runGenerate() {
     if (!apiKey) { navigate('/settings'); return }
 
     setError('')
     setRawOutput('')
     setSavedToHistory(false)
     setGenerating(true)
+    setModalOpen(true)
 
     const { system, user } = buildSinglePostPrompt({
       topic: topic.trim(),
@@ -68,9 +69,9 @@ export default function SinglePost() {
         userMessage: user,
         onChunk: (chunk) => setRawOutput((prev) => prev + chunk),
       })
-      const id = crypto.randomUUID()
-      addHistory({ id, topic: topic.trim(), createdAt: Date.now(), content: full })
-      setSavedToHistory(true)
+      // 生成完成后自动追加到历史但不标记为"已保存"——让用户主动确认
+      // 仅在用户点"保存到历史"时才写入
+      void full
     } catch (err) {
       setError(friendlyError(err))
     } finally {
@@ -78,9 +79,17 @@ export default function SinglePost() {
     }
   }
 
-  async function handleCopyAll() {
-    if (!rawOutput) return
-    await navigator.clipboard.writeText(rawOutput)
+  function handleSave() {
+    if (!rawOutput || savedToHistory) return
+    addHistory({
+      id: crypto.randomUUID(),
+      topic: topic.trim(),
+      createdAt: Date.now(),
+      content: rawOutput,
+      model: 'claude-sonnet-4-6',
+    })
+    setSavedToHistory(true)
+    setModalOpen(false)
   }
 
   return (
@@ -166,12 +175,8 @@ export default function SinglePost() {
           />
         </div>
 
-        {error && (
-          <p className="text-sm text-red-600">{error}</p>
-        )}
-
         <button
-          onClick={handleGenerate}
+          onClick={runGenerate}
           disabled={!canGenerate}
           className="w-full py-2.5 bg-rose-500 text-white rounded-lg font-medium text-sm hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
@@ -179,34 +184,17 @@ export default function SinglePost() {
         </button>
       </div>
 
-      {rawOutput && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              {generating ? '正在生成...' : (savedToHistory ? '已自动保存到历史 ✓' : '生成完成')}
-            </p>
-            {!generating && (
-              <button
-                onClick={handleCopyAll}
-                className="text-xs text-gray-500 hover:text-gray-800 px-3 py-1.5 border border-gray-300 rounded-lg"
-              >
-                复制全部 Markdown
-              </button>
-            )}
-          </div>
-
-          {sections?.titles && <SectionBlock title="📝 标题候选" content={sections.titles} />}
-          {sections?.body && <SectionBlock title="📖 正文" content={sections.body} />}
-          {sections?.tags && <SectionBlock title="🏷️ 话题标签" content={sections.tags} />}
-          {sections?.images && <SectionBlock title="🖼️ 配图思路" content={sections.images} />}
-
-          {generating && !sections?.titles && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4 text-sm text-gray-500 whitespace-pre-wrap">
-              {rawOutput}
-            </div>
-          )}
-        </div>
-      )}
+      <ResultModal
+        open={modalOpen}
+        generating={generating}
+        rawOutput={rawOutput}
+        sections={sections}
+        savedToHistory={savedToHistory}
+        error={error}
+        onClose={() => setModalOpen(false)}
+        onRegenerate={runGenerate}
+        onSave={handleSave}
+      />
     </div>
   )
 }

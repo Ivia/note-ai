@@ -38,6 +38,11 @@ export default function History() {
             ← 返回列表
           </button>
           <span className="text-sm text-gray-400">{formatDate(selected.createdAt)}</span>
+          {selected.model && (
+            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-mono">
+              {selected.model}
+            </span>
+          )}
         </div>
         <h2 className="text-base font-semibold text-gray-800">{selected.topic}</h2>
         <div className="flex gap-2">
@@ -96,7 +101,14 @@ export default function History() {
           >
             <div>
               <p className="text-sm font-medium text-gray-800 truncate max-w-xs">{item.topic}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{formatDate(item.createdAt)}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-gray-400">{formatDate(item.createdAt)}</p>
+                {item.model && (
+                  <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">
+                    {item.model}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2 ml-4 shrink-0">
               <button

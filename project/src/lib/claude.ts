@@ -13,21 +13,38 @@ export async function callClaude({ apiKey, baseUrl, system, userMessage, onChunk
   if (baseUrl?.trim()) clientOpts.baseURL = baseUrl.trim()
   const client = new Anthropic(clientOpts)
 
-  const stream = client.messages.stream({
+  // 先尝试流式；企业版网关如不支持 SSE 会报 "no chunks"，回退到非流式
+  try {
+    const stream = client.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8192,
+      system,
+      messages: [{ role: 'user', content: userMessage }],
+    })
+
+    let full = ''
+    stream.on('text', (text) => {
+      full += text
+      onChunk(text)
+    })
+
+    await stream.finalMessage()
+    if (full) return full
+  } catch {
+    // 流式失败，降级到非流式
+  }
+
+  // 非流式兜底（企业版网关兼容）
+  const msg = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 8192,
     system,
     messages: [{ role: 'user', content: userMessage }],
   })
-
-  let full = ''
-  for await (const event of stream) {
-    if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-      full += event.delta.text
-      onChunk(event.delta.text)
-    }
-  }
-  return full
+  const block = msg.content[0]
+  const text = block.type === 'text' ? block.text : ''
+  onChunk(text)
+  return text
 }
 
 export function friendlyError(err: unknown): string {

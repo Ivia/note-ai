@@ -6,6 +6,7 @@ export interface HistoryItem {
   topic: string
   createdAt: number
   content: string
+  model: string
 }
 
 interface Store {
