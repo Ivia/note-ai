@@ -9,6 +9,15 @@ export interface HistoryItem {
   model: string
 }
 
+export interface StartupNote {
+  id: string
+  startupId: string
+  createdAt: number
+  model: string
+  count: 1 | 3 | 5
+  content: string
+}
+
 export interface StartupRecord {
   id: string
   createdAt: number
@@ -33,6 +42,9 @@ interface Store {
   startupRecords: StartupRecord[]
   addStartupRecord: (item: StartupRecord) => void
   deleteStartupRecord: (id: string) => void
+  startupNotes: StartupNote[]
+  addStartupNote: (item: StartupNote) => void
+  deleteStartupNote: (id: string) => void
 }
 
 export const useStore = create<Store>()(
@@ -53,6 +65,11 @@ export const useStore = create<Store>()(
         set((s) => ({ startupRecords: [item, ...s.startupRecords].slice(0, 100) })),
       deleteStartupRecord: (id) =>
         set((s) => ({ startupRecords: s.startupRecords.filter((r) => r.id !== id) })),
+      startupNotes: [],
+      addStartupNote: (item) =>
+        set((s) => ({ startupNotes: [item, ...s.startupNotes].slice(0, 500) })),
+      deleteStartupNote: (id) =>
+        set((s) => ({ startupNotes: s.startupNotes.filter((n) => n.id !== id) })),
     }),
     { name: 'note-ai-store' }
   )

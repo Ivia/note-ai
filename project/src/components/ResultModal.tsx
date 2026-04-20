@@ -18,6 +18,8 @@ interface Props {
   onClose: () => void
   onRegenerate: () => void
   onSave: () => void
+  saveLabel?: string
+  readOnly?: boolean
 }
 
 /**
@@ -36,6 +38,8 @@ export default function ResultModal({
   onClose,
   onRegenerate,
   onSave,
+  saveLabel = '保存到历史',
+  readOnly = false,
 }: Props) {
   const [copied, setCopied] = useState(false)
   const [elapsed, setElapsed] = useState(0)
@@ -126,20 +130,24 @@ export default function ResultModal({
           >
             {copied ? '已复制 ✓' : '复制全部'}
           </button>
-          <button
-            onClick={onRegenerate}
-            disabled={generating}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            重新生成
-          </button>
-          <button
-            onClick={onSave}
-            disabled={generating || savedToHistory}
-            className="ml-auto px-4 py-2 text-sm bg-rose-500 text-white rounded-lg hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {savedToHistory ? '已保存 ✓' : '保存到历史'}
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                onClick={onRegenerate}
+                disabled={generating}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                重新生成
+              </button>
+              <button
+                onClick={onSave}
+                disabled={generating || savedToHistory}
+                className="ml-auto px-4 py-2 text-sm bg-rose-500 text-white rounded-lg hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {savedToHistory ? '已保存 ✓' : saveLabel}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

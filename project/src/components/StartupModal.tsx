@@ -133,8 +133,9 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
                 value={direction}
                 onChange={(e) => setDirection(e.target.value)}
                 rows={3}
+                disabled={generating}
                 placeholder="描述你想做的内容方向，例如：分享平价好用的护肤品、记录职场新人的成长日记、做家常菜教程..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none disabled:bg-gray-50 disabled:text-gray-400"
               />
             </div>
 
@@ -150,7 +151,8 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
                     key={d}
                     type="button"
                     onClick={() => toggleTag(d)}
-                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    disabled={generating}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       selectedTags.includes(d)
                         ? 'bg-rose-500 text-white border-rose-500'
                         : 'border-gray-300 text-gray-600 hover:border-rose-400'
@@ -172,8 +174,9 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
                 value={persona}
                 onChange={(e) => setPersona(e.target.value)}
                 rows={2}
+                disabled={generating}
                 placeholder="例如：28岁宝妈，有两个孩子，平时喜欢研究好物..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none disabled:bg-gray-50 disabled:text-gray-400"
               />
             </div>
 
@@ -191,9 +194,10 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
                       value={g}
                       checked={goal === g}
                       onChange={() => setGoal(g)}
-                      className="accent-rose-500"
+                      disabled={generating}
+                      className="accent-rose-500 disabled:opacity-40"
                     />
-                    <span className="text-sm text-gray-700">{g}</span>
+                    <span className={`text-sm ${generating ? 'text-gray-400' : 'text-gray-700'}`}>{g}</span>
                   </label>
                 ))}
               </div>
@@ -208,8 +212,9 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
                 rows={4}
+                disabled={generating}
                 placeholder="粘贴1-3篇同类爆款笔记文本，AI 会分析其风格规律"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none disabled:bg-gray-50 disabled:text-gray-400"
               />
             </div>
 
