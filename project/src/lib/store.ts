@@ -18,6 +18,15 @@ export interface StartupNote {
   content: string
 }
 
+export interface DiagnosisRecord {
+  id: string
+  createdAt: number
+  model: string
+  positioning: string  // 账号定位（可选，空字符串表示未填）
+  noteCount: number    // 粘贴的笔记行数
+  content: string      // 完整诊断报告
+}
+
 export interface StartupRecord {
   id: string
   createdAt: number
@@ -45,6 +54,9 @@ interface Store {
   startupNotes: StartupNote[]
   addStartupNote: (item: StartupNote) => void
   deleteStartupNote: (id: string) => void
+  diagnosisRecords: DiagnosisRecord[]
+  addDiagnosisRecord: (item: DiagnosisRecord) => void
+  deleteDiagnosisRecord: (id: string) => void
 }
 
 export const useStore = create<Store>()(
@@ -70,6 +82,11 @@ export const useStore = create<Store>()(
         set((s) => ({ startupNotes: [item, ...s.startupNotes].slice(0, 500) })),
       deleteStartupNote: (id) =>
         set((s) => ({ startupNotes: s.startupNotes.filter((n) => n.id !== id) })),
+      diagnosisRecords: [],
+      addDiagnosisRecord: (item) =>
+        set((s) => ({ diagnosisRecords: [item, ...s.diagnosisRecords].slice(0, 100) })),
+      deleteDiagnosisRecord: (id) =>
+        set((s) => ({ diagnosisRecords: s.diagnosisRecords.filter((r) => r.id !== id) })),
     }),
     { name: 'note-ai-store' }
   )

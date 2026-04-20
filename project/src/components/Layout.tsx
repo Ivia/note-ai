@@ -2,7 +2,8 @@ import { NavLink, Outlet } from 'react-router-dom'
 
 const tabs = [
   { to: '/', label: '✍️ 生成文案', end: true },
-  { to: '/history', label: '📋 历史记录' },
+  { to: '/startup', label: '🚀 起号助手' },
+  { to: '/diagnosis', label: '🔍 账号诊断' },
   { to: '/settings', label: '⚙️ 设置' },
 ]
 

@@ -95,7 +95,15 @@ export default function SinglePost() {
   return (
     <div className="space-y-5">
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-        <h1 className="text-base font-semibold text-gray-800">一键生成小红书文案</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-base font-semibold text-gray-800">一键生成小红书文案</h1>
+          <button
+            onClick={() => navigate('/history')}
+            className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border border-gray-200 rounded-lg hover:border-gray-300"
+          >
+            历史记录 →
+          </button>
+        </div>
 
         {!apiKey && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
