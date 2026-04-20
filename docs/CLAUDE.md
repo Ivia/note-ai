@@ -59,6 +59,52 @@
 
 ---
 
+## 代码规范
+
+### 命名
+
+| 场景 | 规则 | 示例 |
+|------|------|------|
+| 组件文件 / 函数 | `PascalCase` | `SectionBlock.tsx` |
+| 普通函数、变量、hooks | `camelCase` | `handleSubmit`、`useStore` |
+| 常量 | `UPPER_SNAKE_CASE` | `STYLE_PRESETS` |
+| CSS 类名 | 只用 Tailwind，不自定义 class 名 | — |
+
+### 组件拆分
+
+- 单个组件超过 150 行，考虑拆分
+- 同一段 JSX 在 2 处以上出现，提取为组件
+- 纯展示组件放 `components/`，带页面逻辑的放 `pages/`
+
+### 复用优先级
+
+- 优先用已有组件（`SectionBlock`、`MarkdownView`），不重复造
+- 公共工具函数放 `lib/`，不写在组件内
+- Prompt 模板统一放 `lib/prompts/`
+
+### TypeScript
+
+- 不用 `any`，实在不确定类型用 `unknown` + 类型收窄
+- Props 用 `interface` 定义，保持一致
+- 导出类型用 `export type`
+
+### 注释规范
+
+- **不写**解释"做了什么"的注释——靠好的命名传达意图
+- **只在以下情况写注释**：
+  - 有不明显的业务约束或边界条件
+  - 绕过了某个 bug 或框架限制（说明为什么这么写）
+  - 正则、位运算等不直观的逻辑（解释意图，不解释步骤）
+- 注释用**中文**
+- 复杂函数写 JSDoc，**最多 5 行**；简单函数不写
+- 删除代码直接删，不留 `// TODO` 或注释掉的旧代码
+
+### 错误处理
+
+- 错误提示统一走 `lib/claude.ts` 的 `friendlyError`，不在页面里散落 catch 逻辑
+
+---
+
 ## 分支管理规范
 
 ### 日常开发
