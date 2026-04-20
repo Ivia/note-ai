@@ -47,7 +47,7 @@
 
 ### 阶段 4 · 提交 git
 
-收到"通过"后，执行 commit + push，然后报告：
+收到"通过"后，执行 commit + push 到 `dev` 分支，然后报告：
 
 ```
 ## 已提交
@@ -56,6 +56,34 @@
 - 分支：（branch）
 - 链接：https://github.com/Ivia/note-ai/commit/（sha）
 ```
+
+---
+
+## 分支管理规范
+
+### 日常开发
+
+- **所有代码改动必须在 `dev` 分支上进行**，禁止直接在 `main` 上写代码
+- 每次 push 目标为 `origin/dev`
+- 若当前不在 `dev` 分支，先执行 `git checkout dev`，若不存在则 `git checkout -b dev && git push -u origin dev`
+
+### 发布版本
+
+当用户明确说"发布 vX.Y.Z"或"出 vX.Y.Z 版本"时，执行以下步骤（**无需再次确认**）：
+
+1. 从 `dev` 新建版本分支：`git checkout -b vX.Y.Z`
+2. 推送到远端：`git push -u origin vX.Y.Z`
+3. 将 `dev` 合并回 `main`：`git checkout main && git merge dev && git push`
+4. 切回 `dev` 继续开发：`git checkout dev`
+5. 报告：已创建 `vX.Y.Z` 分支、已同步到 `main`
+
+### 分支结构总览
+
+| 分支 | 用途 |
+|------|------|
+| `main` | 稳定版，只在发布时从 `dev` 合并进来 |
+| `dev` | 日常开发主力分支 |
+| `vX.Y.Z` | 每个发布版本的快照，只读，不在上面继续开发 |
 
 ---
 
