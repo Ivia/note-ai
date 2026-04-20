@@ -37,6 +37,20 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
     return () => clearInterval(id)
   }, [generating])
 
+  // 弹窗每次打开时重置所有状态
+  useEffect(() => {
+    if (!open) return
+    setDirection('')
+    setSelectedTags([])
+    setPersona('')
+    setGoal('')
+    setReference('')
+    setGenerating(false)
+    setRawOutput('')
+    setError('')
+    setSaved(false)
+  }, [open])
+
   if (!open) return null
 
   function toggleTag(tag: string) {
@@ -223,7 +237,7 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
               disabled={!canGenerate}
               className="w-full py-2.5 bg-rose-500 text-white rounded-lg font-medium text-sm hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {generating ? `生成中... ${elapsed}s` : '🚀 一键生成'}
+              {generating ? `生成中... ${elapsed}s` : rawOutput ? '重新生成' : '🚀 一键生成'}
             </button>
           </div>
 
@@ -255,13 +269,6 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
 
             {/* 底部操作栏 */}
             <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100 shrink-0">
-              <button
-                onClick={handleGenerate}
-                disabled={!canGenerate || !rawOutput}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                重新生成
-              </button>
               <button
                 onClick={handleSave}
                 disabled={generating || !rawOutput || saved}
