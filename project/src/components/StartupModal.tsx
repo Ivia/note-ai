@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { callClaude, friendlyError } from '../lib/claude'
 import { DIRECTIONS, GOALS, buildStartupPrompt } from '../lib/prompts/startup'
+import UrlInput, { validateUrls } from './UrlInput'
+import CookieInput from './CookieInput'
+import { fetchUserNotes, coverUrlToBase64, parseDataUrl } from '../lib/xhs'
+import type { XhsNote } from '../lib/xhs'
 
 interface Props {
   open: boolean
@@ -11,18 +15,35 @@ interface Props {
 
 const MODEL = 'claude-sonnet-4-6'
 
-/**
- * 新起号弹窗
- * 左侧：输入表单；右侧：生成结果实时展示
- */
+type RefMode = 'url' | 'manual'
+
+function formatFetchedProfile(notes: XhsNote[]): string {
+  return notes
+    .map((n, i) => {
+      const parts = [`${i + 1}. ${n.title}`]
+      if (n.likes) parts.push(`赞${n.likes}`)
+      if (n.collects) parts.push(`藏${n.collects}`)
+      if (n.comments) parts.push(`评${n.comments}`)
+      return parts.join(' ')
+    })
+    .join('\n')
+}
+
 export default function StartupModal({ open, onClose, onSaved }: Props) {
-  const { apiKey, baseUrl, addStartupRecord } = useStore()
+  const { apiKey, baseUrl, addStartupRecord, xhsCookie, setXhsCookie } = useStore()
 
   const [direction, setDirection] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [persona, setPersona] = useState('')
   const [goal, setGoal] = useState('')
-  const [reference, setReference] = useState('')
+
+  // 对标参考区
+  const [refMode, setRefMode] = useState<RefMode>('manual')
+  const [refUrl, setRefUrl] = useState('')
+  const [refFetching, setRefFetching] = useState(false)
+  const [refFetchError, setRefFetchError] = useState('')
+  const [fetchedNotes, setFetchedNotes] = useState<XhsNote[]>([])
+  const [manualReference, setManualReference] = useState('')
 
   const [generating, setGenerating] = useState(false)
   const [rawOutput, setRawOutput] = useState('')
@@ -37,14 +58,18 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
     return () => clearInterval(id)
   }, [generating])
 
-  // 弹窗每次打开时重置所有状态
   useEffect(() => {
     if (!open) return
     setDirection('')
     setSelectedTags([])
     setPersona('')
     setGoal('')
-    setReference('')
+    setRefMode('manual')
+    setRefUrl('')
+    setRefFetching(false)
+    setRefFetchError('')
+    setFetchedNotes([])
+    setManualReference('')
     setGenerating(false)
     setRawOutput('')
     setError('')
@@ -59,7 +84,31 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
     )
   }
 
+  const hasFetchedNotes = fetchedNotes.length > 0
   const canGenerate = !generating && !!apiKey && direction.trim() !== '' && !!goal
+
+  async function handleFetchProfile() {
+    const { urls, errors } = validateUrls(refUrl, 'profile')
+    if (errors.length > 0 || urls.length === 0) {
+      setRefFetchError('请输入有效的小红书主页链接')
+      return
+    }
+    if (!xhsCookie.trim()) {
+      setRefFetchError('请填写 Cookie')
+      return
+    }
+    setRefFetchError('')
+    setFetchedNotes([])
+    setRefFetching(true)
+    try {
+      const result = await fetchUserNotes(refUrl.trim(), xhsCookie.trim(), 10)
+      setFetchedNotes(result.notes)
+    } catch (err) {
+      setRefFetchError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRefFetching(false)
+    }
+  }
 
   async function handleGenerate() {
     setError('')
@@ -67,12 +116,28 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
     setSaved(false)
     setGenerating(true)
 
+    let reference: string | undefined
+    let images: { mediaType: string; data: string }[] | undefined
+
+    if (refMode === 'url' && hasFetchedNotes) {
+      reference = formatFetchedProfile(fetchedNotes)
+      try {
+        const dataUrls = await Promise.all(fetchedNotes.map((n) => coverUrlToBase64(n.coverUrl)))
+        images = dataUrls.map(parseDataUrl)
+      } catch {
+        // 封面图获取失败降级为纯文本
+      }
+    } else if (refMode === 'manual' && manualReference.trim()) {
+      reference = manualReference.trim()
+    }
+
     const { system, user } = buildStartupPrompt({
       direction: direction.trim(),
       tags: selectedTags,
       persona: persona.trim() || undefined,
       goal,
-      reference: reference.trim() || undefined,
+      reference,
+      hasReferenceImages: images && images.length > 0,
     })
 
     try {
@@ -81,6 +146,7 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
         baseUrl: baseUrl || undefined,
         system,
         userMessage: user,
+        images,
         onChunk: (chunk) => setRawOutput((prev) => prev + chunk),
       })
     } catch (err) {
@@ -100,7 +166,7 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
       tags: selectedTags,
       persona: persona.trim(),
       goal,
-      reference: reference.trim(),
+      reference: refMode === 'manual' ? manualReference.trim() : (hasFetchedNotes ? formatFetchedProfile(fetchedNotes) : ''),
       content: rawOutput,
     })
     setSaved(true)
@@ -109,7 +175,7 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
   }
 
   function handleClose() {
-    if (generating) return
+    if (generating || refFetching) return
     onClose()
   }
 
@@ -121,7 +187,7 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
           <span className="font-semibold text-gray-800">新起号</span>
           <button
             onClick={handleClose}
-            disabled={generating}
+            disabled={generating || refFetching}
             className="text-gray-400 hover:text-gray-700 text-xl leading-none px-1 disabled:opacity-30"
           >
             ×
@@ -218,18 +284,84 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
             </div>
 
             {/* 对标参考 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                对标参考 <span className="text-gray-400 font-normal text-xs">（可选）</span>
-              </label>
-              <textarea
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                rows={4}
-                disabled={generating}
-                placeholder="粘贴1-3篇同类爆款笔记文本，AI 会分析其风格规律"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none disabled:bg-gray-50 disabled:text-gray-400"
-              />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">
+                  对标参考 <span className="text-gray-400 font-normal text-xs">（可选）</span>
+                </label>
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setRefMode('url')}
+                    disabled={generating}
+                    className={`px-3 py-1.5 font-medium transition-colors disabled:opacity-40 ${
+                      refMode === 'url' ? 'bg-rose-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    链接抓取
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRefMode('manual')}
+                    disabled={generating}
+                    className={`px-3 py-1.5 font-medium transition-colors disabled:opacity-40 ${
+                      refMode === 'manual' ? 'bg-rose-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    手动粘贴
+                  </button>
+                </div>
+              </div>
+
+              {refMode === 'url' && (
+                <div className="space-y-3">
+                  <UrlInput
+                    mode="profile"
+                    value={refUrl}
+                    onChange={(v) => { setRefUrl(v); setFetchedNotes([]); setRefFetchError('') }}
+                    disabled={refFetching || generating}
+                    single
+                  />
+
+                  <CookieInput
+                    value={xhsCookie}
+                    onChange={setXhsCookie}
+                    disabled={refFetching || generating}
+                  />
+
+                  {refFetchError && (
+                    <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      {refFetchError}
+                    </p>
+                  )}
+
+                  {hasFetchedNotes && (
+                    <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                      ✓ 已抓取 {fetchedNotes.length} 篇笔记（含封面图）
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleFetchProfile}
+                    disabled={refFetching || generating || !refUrl.trim() || !xhsCookie.trim()}
+                    className="w-full py-2 border border-rose-400 text-rose-500 rounded-lg text-sm font-medium hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {refFetching ? '抓取中...' : hasFetchedNotes ? '重新抓取' : '抓取主页'}
+                  </button>
+                </div>
+              )}
+
+              {refMode === 'manual' && (
+                <textarea
+                  value={manualReference}
+                  onChange={(e) => setManualReference(e.target.value)}
+                  rows={4}
+                  disabled={generating}
+                  placeholder="粘贴1-3篇同类爆款笔记文本，AI 会分析其风格规律"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none disabled:bg-gray-50 disabled:text-gray-400"
+                />
+              )}
             </div>
 
             <button

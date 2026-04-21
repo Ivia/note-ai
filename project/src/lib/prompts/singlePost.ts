@@ -3,6 +3,7 @@ interface SinglePostInput {
   selling: string
   style: string
   reference?: string
+  hasReferenceImages?: boolean
 }
 
 export function buildSinglePostPrompt(input: SinglePostInput) {
@@ -31,9 +32,12 @@ export function buildSinglePostPrompt(input: SinglePostInput) {
 1. 封面：（画面内容描述）（文字贴纸：xxx）
 2. ...（共6-9张）`
 
+  const refPart = input.reference
+    ? `\n参考笔记（学习其风格和结构，但不要抄袭内容）${input.hasReferenceImages ? '（已附上参考笔记图片，请结合图片内容理解其风格）' : ''}：\n${input.reference}`
+    : ''
   const user = `主题：${input.topic}
 核心卖点/想表达的信息：${input.selling}
-期望风格：${input.style}${input.reference ? `\n参考笔记（学习其风格和结构，但不要抄袭内容）：\n${input.reference}` : ''}
+期望风格：${input.style}${refPart}
 
 请按格式输出。`
 

@@ -3,7 +3,13 @@ import { useStore } from '../lib/store'
 import { callClaude, friendlyError } from '../lib/claude'
 import { buildSinglePostPrompt, STYLE_PRESETS } from '../lib/prompts/singlePost'
 import ResultModal from '../components/ResultModal'
+import UrlInput, { validateUrls } from '../components/UrlInput'
+import CookieInput from '../components/CookieInput'
+import { fetchNoteContent, coverUrlToBase64, parseDataUrl } from '../lib/xhs'
+import type { NoteContent } from '../lib/xhs'
 import { useNavigate } from 'react-router-dom'
+
+type RefMode = 'url' | 'manual'
 
 interface Sections {
   titles: string
@@ -25,15 +31,33 @@ function parseSections(raw: string): Sections {
   }
 }
 
+function formatFetchedNotes(notes: NoteContent[]): string {
+  return notes
+    .map((n, i) => {
+      const parts = [`【参考笔记${i + 1}】标题：${n.title}`]
+      if (n.content) parts.push(`正文：${n.content}`)
+      if (n.tags.length > 0) parts.push(`标签：${n.tags.join(' ')}`)
+      return parts.join('\n')
+    })
+    .join('\n\n')
+}
+
 export default function SinglePost() {
-  const { apiKey, baseUrl, addHistory } = useStore()
+  const { apiKey, baseUrl, addHistory, xhsCookie, setXhsCookie } = useStore()
   const navigate = useNavigate()
 
   const [topic, setTopic] = useState('')
   const [selling, setSelling] = useState('')
   const [style, setStyle] = useState(STYLE_PRESETS[0])
   const [customStyle, setCustomStyle] = useState('')
-  const [reference, setReference] = useState('')
+
+  // 参考笔记区
+  const [refMode, setRefMode] = useState<RefMode>('manual')
+  const [refUrls, setRefUrls] = useState('')
+  const [refFetching, setRefFetching] = useState(false)
+  const [refFetchError, setRefFetchError] = useState('')
+  const [fetchedNotes, setFetchedNotes] = useState<NoteContent[]>([])
+  const [manualReference, setManualReference] = useState('')
 
   const [modalOpen, setModalOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -41,9 +65,33 @@ export default function SinglePost() {
   const [error, setError] = useState('')
   const [savedToHistory, setSavedToHistory] = useState(false)
 
+  const hasFetchedNotes = fetchedNotes.length > 0
   const canGenerate = !generating && !!apiKey && topic.trim() !== '' && selling.trim() !== ''
   const sections = rawOutput ? parseSections(rawOutput) : null
   const effectiveStyle = style === '自由发挥' ? (customStyle || '自由发挥') : style
+
+  async function handleFetchNotes() {
+    const { urls, errors } = validateUrls(refUrls, 'note')
+    if (errors.length > 0 || urls.length === 0) {
+      setRefFetchError('请输入有效的小红书笔记链接')
+      return
+    }
+    if (!xhsCookie.trim()) {
+      setRefFetchError('请填写 Cookie')
+      return
+    }
+    setRefFetchError('')
+    setFetchedNotes([])
+    setRefFetching(true)
+    try {
+      const notes = await fetchNoteContent(urls.slice(0, 3), xhsCookie.trim())
+      setFetchedNotes(notes)
+    } catch (err) {
+      setRefFetchError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRefFetching(false)
+    }
+  }
 
   async function runGenerate() {
     if (!apiKey) { navigate('/settings'); return }
@@ -54,11 +102,31 @@ export default function SinglePost() {
     setGenerating(true)
     setModalOpen(true)
 
+    let reference: string | undefined
+    let images: { mediaType: string; data: string }[] | undefined
+
+    if (refMode === 'url' && hasFetchedNotes) {
+      reference = formatFetchedNotes(fetchedNotes)
+      // 收集每篇笔记的图片（最多每篇3张，总计最多6张）
+      try {
+        const imageUrls = fetchedNotes.flatMap((n) => n.imageUrls.slice(0, 3)).slice(0, 6)
+        if (imageUrls.length > 0) {
+          const dataUrls = await Promise.all(imageUrls.map((u) => coverUrlToBase64(u)))
+          images = dataUrls.map(parseDataUrl)
+        }
+      } catch {
+        // 图片获取失败不中断，降级为纯文本
+      }
+    } else if (refMode === 'manual' && manualReference.trim()) {
+      reference = manualReference.trim()
+    }
+
     const { system, user } = buildSinglePostPrompt({
       topic: topic.trim(),
       selling: selling.trim(),
       style: effectiveStyle,
-      reference: reference.trim() || undefined,
+      reference,
+      hasReferenceImages: images && images.length > 0,
     })
 
     try {
@@ -67,10 +135,9 @@ export default function SinglePost() {
         baseUrl: baseUrl || undefined,
         system,
         userMessage: user,
+        images,
         onChunk: (chunk) => setRawOutput((prev) => prev + chunk),
       })
-      // 生成完成后自动追加到历史但不标记为"已保存"——让用户主动确认
-      // 仅在用户点"保存到历史"时才写入
       void full
     } catch (err) {
       setError(friendlyError(err))
@@ -170,17 +237,81 @@ export default function SinglePost() {
           )}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            参考笔记 <span className="text-gray-400 font-normal">（可选）</span>
-          </label>
-          <textarea
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-            rows={3}
-            placeholder="粘贴一段你喜欢的爆款笔记，AI 会学习其风格和结构"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
-          />
+        {/* 参考笔记区域 */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">
+              参考笔记 <span className="text-gray-400 font-normal">（可选）</span>
+            </label>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+              <button
+                type="button"
+                onClick={() => setRefMode('url')}
+                className={`px-3 py-1.5 font-medium transition-colors ${
+                  refMode === 'url' ? 'bg-rose-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                链接抓取
+              </button>
+              <button
+                type="button"
+                onClick={() => setRefMode('manual')}
+                className={`px-3 py-1.5 font-medium transition-colors ${
+                  refMode === 'manual' ? 'bg-rose-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                手动粘贴
+              </button>
+            </div>
+          </div>
+
+          {refMode === 'url' && (
+            <div className="space-y-3">
+              <UrlInput
+                mode="note"
+                value={refUrls}
+                onChange={(v) => { setRefUrls(v); setFetchedNotes([]); setRefFetchError('') }}
+                disabled={refFetching || generating}
+              />
+
+              <CookieInput
+                value={xhsCookie}
+                onChange={setXhsCookie}
+                disabled={refFetching || generating}
+              />
+
+              {refFetchError && (
+                <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {refFetchError}
+                </p>
+              )}
+
+              {hasFetchedNotes && (
+                <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  ✓ 已抓取 {fetchedNotes.length} 篇参考笔记（含图片）
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleFetchNotes}
+                disabled={refFetching || generating || !refUrls.trim() || !xhsCookie.trim()}
+                className="w-full py-2 border border-rose-400 text-rose-500 rounded-lg text-sm font-medium hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {refFetching ? '抓取中...' : hasFetchedNotes ? '重新抓取' : '抓取笔记'}
+              </button>
+            </div>
+          )}
+
+          {refMode === 'manual' && (
+            <textarea
+              value={manualReference}
+              onChange={(e) => setManualReference(e.target.value)}
+              rows={3}
+              placeholder="粘贴一段你喜欢的爆款笔记，AI 会学习其风格和结构"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+            />
+          )}
         </div>
 
         <button

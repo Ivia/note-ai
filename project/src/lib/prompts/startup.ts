@@ -15,6 +15,7 @@ interface StartupInput {
   persona?: string
   goal: string
   reference?: string
+  hasReferenceImages?: boolean
 }
 
 export function buildStartupPrompt(input: StartupInput) {
@@ -32,7 +33,9 @@ export function buildStartupPrompt(input: StartupInput) {
 （按周拆解，每周主题方向 + 建议发帖频率 + 2-3个具体选题示例）`
 
   const personaLine = input.persona?.trim() ? `\n人设描述：${input.persona.trim()}` : ''
-  const refLine = input.reference ? `\n对标参考笔记（学习其风格规律，不要抄袭）：\n${input.reference}` : ''
+  const refLine = input.reference
+    ? `\n对标参考笔记${input.hasReferenceImages ? '（已附上封面图，请结合封面风格进行分析）' : ''}（学习其风格规律，不要抄袭）：\n${input.reference}`
+    : ''
   const user = `内容方向：${input.direction}
 参考方向标签：${input.tags.join('、') || '未填写'}${personaLine}
 起号目标：${input.goal}${refLine}

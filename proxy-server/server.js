@@ -131,6 +131,78 @@ app.post('/api/user-notes', async (req, res) => {
   }
 })
 
+// 抓取单篇笔记内容（标题、正文、图片链接、标签）
+app.post('/api/note-content', async (req, res) => {
+  const { urls, cookie } = req.body
+  if (!urls || !Array.isArray(urls) || urls.length === 0 || !cookie) {
+    return res.status(400).json({ error: '缺少 urls 或 cookie 参数' })
+  }
+
+  const results = []
+  let context = null
+  try {
+    const b = await getBrowser()
+    context = await b.newContext({
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    })
+    await context.addCookies(parseCookieString(cookie))
+
+    for (const url of urls.slice(0, 3)) {
+      const page = await context.newPage()
+      try {
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 25000 })
+        await page.waitForSelector('#detail-title, .note-content .title, .title', { timeout: 8000 }).catch(() => {})
+
+        const note = await page.evaluate(() => {
+          const title =
+            document.querySelector('#detail-title')?.textContent?.trim() ||
+            document.querySelector('.note-content .title')?.textContent?.trim() ||
+            document.querySelector('h1')?.textContent?.trim() || ''
+
+          // 正文：去掉话题标签部分，只取纯文字
+          const descEl = document.querySelector('#detail-desc .desc, .note-content #detail-desc, .desc')
+          const tags = []
+          if (descEl) {
+            descEl.querySelectorAll('a.topic, .tag').forEach((el) => {
+              const t = el.textContent?.trim()
+              if (t) tags.push(t)
+            })
+          }
+          const rawDesc = descEl?.textContent?.trim() || ''
+          const content = rawDesc.replace(/#\S+/g, '').trim()
+
+          // 图片（最多取6张）
+          const imageUrls = []
+          document.querySelectorAll('.swiper-slide img, .note-image img, .image-slide img').forEach((img) => {
+            const src = img.src
+            if (src && src.startsWith('http') && !imageUrls.includes(src)) {
+              imageUrls.push(src)
+            }
+          })
+
+          // 视频封面
+          const videoEl = document.querySelector('video')
+          const type = videoEl ? 'video' : 'image'
+
+          return { title, content, imageUrls: imageUrls.slice(0, 6), tags, type }
+        })
+
+        results.push({ url, ...note })
+      } catch (err) {
+        results.push({ url, title: '', content: '', imageUrls: [], tags: [], type: 'image', error: err.message })
+      } finally {
+        await page.close().catch(() => {})
+      }
+    }
+
+    res.json({ success: true, notes: results })
+  } catch (err) {
+    res.status(500).json({ error: err.message || '抓取失败' })
+  } finally {
+    if (context) await context.close().catch(() => {})
+  }
+})
+
 // 校验 Cookie 是否有效（请求小红书用户信息接口）
 app.post('/api/validate-cookie', async (req, res) => {
   const { cookie } = req.body

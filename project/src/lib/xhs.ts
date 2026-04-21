@@ -42,6 +42,26 @@ export async function coverUrlToBase64(coverUrl: string): Promise<string> {
   })
 }
 
+export interface NoteContent {
+  url: string
+  title: string
+  content: string
+  imageUrls: string[]
+  tags: string[]
+  type: 'image' | 'video'
+}
+
+export async function fetchNoteContent(urls: string[], cookie: string): Promise<NoteContent[]> {
+  const res = await fetch('/xhs-api/api/note-content', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ urls, cookie }),
+  })
+  const data = await res.json()
+  if (!res.ok || !data.success) throw new Error(data.error || '抓取失败')
+  return data.notes
+}
+
 // 从 data URL 中解析 base64 数据和 mediaType
 export function parseDataUrl(dataUrl: string): { mediaType: string; data: string } {
   const [header, data] = dataUrl.split(',')
