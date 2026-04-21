@@ -1,0 +1,163 @@
+const express = require('express')
+const cors = require('cors')
+const https = require('https')
+const { chromium } = require('playwright')
+
+const app = express()
+app.use(cors())
+app.use(express.json())
+
+let browser = null
+
+async function getBrowser() {
+  if (!browser || !browser.isConnected()) {
+    browser = await chromium.launch({ headless: true })
+  }
+  return browser
+}
+
+function parseCookieString(str) {
+  return str.split(';')
+    .map(p => p.trim()).filter(Boolean)
+    .map(p => {
+      const idx = p.indexOf('=')
+      return {
+        name: p.slice(0, idx).trim(),
+        value: p.slice(idx + 1).trim(),
+        domain: '.xiaohongshu.com',
+        path: '/',
+        sameSite: 'Lax',
+      }
+    })
+}
+
+function parseCount(val) {
+  if (!val) return 0
+  if (typeof val === 'number') return val
+  const s = String(val).replace(/,/g, '')
+  if (s.includes('万')) return Math.round(parseFloat(s) * 10000)
+  return parseInt(s, 10) || 0
+}
+
+function extractNotes(json) {
+  const data = json?.data
+  if (!data) return []
+  const list = data.notes || data.user_note_list || data.items || []
+  return list
+    .map(n => ({
+      id: n.id || n.note_id || '',
+      title: n.display_title || n.title || n.note_card?.display_title || '',
+      coverUrl: n.cover?.url_default || n.cover?.url || n.image_list?.[0]?.url || n.note_card?.cover?.url_default || '',
+      likes: parseCount(n.interact_info?.liked_count ?? n.liked_count),
+      collects: parseCount(n.interact_info?.collected_count ?? n.collected_count),
+      comments: parseCount(n.interact_info?.comment_count ?? n.comment_count),
+      type: n.type || 'normal',
+    }))
+    .filter(n => n.title)
+}
+
+// 抓取用户笔记列表
+app.post('/api/user-notes', async (req, res) => {
+  const { url, cookie, count = 20 } = req.body
+  if (!url || !cookie) {
+    return res.status(400).json({ error: '缺少 url 或 cookie 参数' })
+  }
+
+  let context = null
+  try {
+    const b = await getBrowser()
+    context = await b.newContext({
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    })
+    await context.addCookies(parseCookieString(cookie))
+    const page = await context.newPage()
+
+    await page.goto(url, { waitUntil: 'networkidle', timeout: 25000 })
+
+    // 等待笔记卡片渲染
+    await page.waitForSelector('section.note-item', { timeout: 10000 }).catch(() => {})
+
+    // 滚动触发更多笔记懒加载
+    let prevCount = 0
+    for (let i = 0; i < 6; i++) {
+      const cur = await page.evaluate(() => document.querySelectorAll('section.note-item').length)
+      if (cur >= count) break
+      if (cur === prevCount && i > 1) break  // 连续两次没新增，停止
+      prevCount = cur
+      await page.evaluate(() => window.scrollBy(0, 3000))
+      await page.waitForTimeout(2000)
+    }
+
+    // 从 DOM 提取账号信息
+    const accountInfo = await page.evaluate(() => {
+      const nameEl = document.querySelector('.user-name, .username, [data-v-3ce3c27d] .user-name, .info .name')
+      const idEl = document.querySelector('.user-redId, .red-id, .userId')
+      // 从 URL 中提取 userId
+      const urlMatch = location.pathname.match(/\/user\/profile\/([a-f0-9]{24})/)
+      return {
+        userName: nameEl?.textContent?.trim() || '',
+        userId: urlMatch?.[1] || '',
+      }
+    })
+
+    // 从 DOM 提取笔记
+    const result = (await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('section.note-item')).map(el => {
+        const titleEl = el.querySelector('.title span') || el.querySelector('.footer .title') || el.querySelector('.title')
+        const imgEl = el.querySelector('img')
+        const likeEl = el.querySelector('.like-wrapper .count') || el.querySelector('.like-wrapper span:last-child')
+        const linkEl = el.querySelector('a.cover')
+        const href = linkEl?.getAttribute('href') || ''
+        // href 格式 /user/profile/{uid}/{noteId}，取最后一个 24 位 hex
+        const ids = href.match(/\/([a-f0-9]{24})/g) || []
+        const id = ids[ids.length - 1]?.slice(1) || Math.random().toString(36).slice(2)
+        return {
+          id,
+          title: titleEl?.textContent?.trim() || '',
+          coverUrl: imgEl?.src || '',
+          likes: parseInt((likeEl?.textContent || '0').replace(/[^0-9]/g, '')) || 0,
+          collects: 0,
+          comments: 0,
+          type: 'normal',
+        }
+      }).filter(n => n.title)
+    })).slice(0, count)
+
+    res.json({ success: true, notes: result, total: result.length, ...accountInfo })
+  } catch (err) {
+    res.status(500).json({ error: err.message || '抓取失败，请检查链接和 Cookie' })
+  } finally {
+    if (context) await context.close().catch(() => {})
+  }
+})
+
+// 封面图代理（绕过 CORS）
+app.get('/img-proxy', (req, res) => {
+  const { url } = req.query
+  if (!url) return res.status(400).send('Missing url')
+
+  const options = {
+    headers: {
+      'Referer': 'https://www.xiaohongshu.com',
+      'User-Agent': 'Mozilla/5.0',
+    },
+  }
+
+  https.get(url, options, (imgRes) => {
+    res.set('Content-Type', imgRes.headers['content-type'] || 'image/jpeg')
+    res.set('Cache-Control', 'public, max-age=3600')
+    imgRes.pipe(res)
+  }).on('error', (e) => res.status(500).send(e.message))
+})
+
+const PORT = 3001
+app.listen(PORT, () => {
+  console.log(`\nXHS 代理服务已启动：http://localhost:${PORT}`)
+  console.log('前端 Vite 应用会自动通过 /xhs-api 路由到此服务\n')
+  console.log('首次使用前请确认已安装浏览器：npx playwright install chromium\n')
+})
+
+process.on('SIGINT', async () => {
+  if (browser) await browser.close()
+  process.exit(0)
+})

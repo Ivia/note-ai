@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { callClaude, friendlyError } from '../lib/claude'
 import { buildDiagnosisPrompt } from '../lib/prompts/diagnosis'
+import { fetchUserNotes, coverUrlToBase64, parseDataUrl } from '../lib/xhs'
+import type { XhsNote, FetchUserNotesResult } from '../lib/xhs'
 
 interface Props {
   open: boolean
@@ -11,6 +13,20 @@ interface Props {
 
 const MODEL = 'claude-sonnet-4-6'
 
+type InputMode = 'auto' | 'manual'
+
+function formatNoteText(notes: XhsNote[]): string {
+  return notes
+    .map((n, i) => {
+      const parts = [`${i + 1}. ${n.title}`]
+      if (n.likes) parts.push(`赞${n.likes}`)
+      if (n.collects) parts.push(`藏${n.collects}`)
+      if (n.comments) parts.push(`评${n.comments}`)
+      return parts.join(' ')
+    })
+    .join('\n')
+}
+
 function countNotes(raw: string) {
   return raw.split('\n').filter((l) => l.trim() !== '').length
 }
@@ -18,7 +34,19 @@ function countNotes(raw: string) {
 export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
   const { apiKey, baseUrl, addDiagnosisRecord } = useStore()
 
+  const [mode, setMode] = useState<InputMode>('auto')
   const [positioning, setPositioning] = useState('')
+
+  // 自动抓取模式
+  const [profileUrl, setProfileUrl] = useState('')
+  const [cookie, setCookie] = useState('')
+  const [fetchCount, setFetchCount] = useState(20)
+  const [fetching, setFetching] = useState(false)
+  const [fetchError, setFetchError] = useState('')
+  const [fetchedNotes, setFetchedNotes] = useState<XhsNote[]>([])
+  const [fetchedAccount, setFetchedAccount] = useState<Pick<FetchUserNotesResult, 'userId' | 'userName'>>({ userId: '', userName: '' })
+
+  // 手动粘贴模式
   const [notes, setNotes] = useState('')
 
   const [generating, setGenerating] = useState(false)
@@ -34,10 +62,17 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
     return () => clearInterval(id)
   }, [generating])
 
-  // 弹窗每次打开时重置所有状态
   useEffect(() => {
     if (!open) return
+    setMode('auto')
     setPositioning('')
+    setProfileUrl('')
+    setCookie('')
+    setFetchCount(20)
+    setFetching(false)
+    setFetchError('')
+    setFetchedNotes([])
+    setFetchedAccount({ userId: '', userName: '' })
     setNotes('')
     setGenerating(false)
     setRawOutput('')
@@ -47,7 +82,28 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
 
   if (!open) return null
 
-  const canGenerate = !generating && !!apiKey && notes.trim() !== ''
+  const hasFetchedData = fetchedNotes.length > 0
+  const hasManualData = notes.trim() !== ''
+  const canGenerate = !generating && !!apiKey && (mode === 'auto' ? hasFetchedData : hasManualData)
+
+  async function handleFetch() {
+    if (!profileUrl.trim() || !cookie.trim()) {
+      setFetchError('请填写主页链接和 Cookie')
+      return
+    }
+    setFetchError('')
+    setFetchedNotes([])
+    setFetching(true)
+    try {
+      const result = await fetchUserNotes(profileUrl.trim(), cookie.trim(), fetchCount)
+      setFetchedNotes(result.notes)
+      setFetchedAccount({ userId: result.userId, userName: result.userName })
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setFetching(false)
+    }
+  }
 
   async function handleGenerate() {
     setError('')
@@ -55,9 +111,24 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
     setSaved(false)
     setGenerating(true)
 
+    const notesText = mode === 'auto' ? formatNoteText(fetchedNotes) : notes.trim()
+
+    let images: { mediaType: string; data: string }[] | undefined
+    if (mode === 'auto' && fetchedNotes.length > 0) {
+      try {
+        const dataUrls = await Promise.all(
+          fetchedNotes.map((n) => coverUrlToBase64(n.coverUrl))
+        )
+        images = dataUrls.map(parseDataUrl)
+      } catch {
+        // 封面图获取失败不中断，降级为纯文本分析
+      }
+    }
+
     const { system, user } = buildDiagnosisPrompt({
       positioning: positioning.trim() || undefined,
-      notes: notes.trim(),
+      notes: notesText,
+      hasImages: images && images.length > 0,
     })
 
     try {
@@ -66,6 +137,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
         baseUrl: baseUrl || undefined,
         system,
         userMessage: user,
+        images,
         onChunk: (chunk) => setRawOutput((prev) => prev + chunk),
       })
     } catch (err) {
@@ -75,6 +147,12 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
     }
   }
 
+  function extractSummary(output: string): string {
+    const match = output.match(/##\s*诊断要点\s*\n+([\s\S]+?)(\n##|$)/)
+    if (!match) return ''
+    return match[1].trim().replace(/\*\*/g, '')
+  }
+
   function handleSave() {
     if (!rawOutput || saved) return
     addDiagnosisRecord({
@@ -82,8 +160,11 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
       createdAt: Date.now(),
       model: MODEL,
       positioning: positioning.trim(),
-      noteCount: countNotes(notes),
+      noteCount: mode === 'auto' ? fetchedNotes.length : countNotes(notes),
       content: rawOutput,
+      summary: extractSummary(rawOutput),
+      userId: mode === 'auto' ? fetchedAccount.userId : '',
+      userName: mode === 'auto' ? fetchedAccount.userName : '',
     })
     setSaved(true)
     onSaved()
@@ -91,7 +172,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
   }
 
   function handleClose() {
-    if (generating) return
+    if (generating || fetching) return
     onClose()
   }
 
@@ -103,7 +184,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
           <span className="font-semibold text-gray-800">新诊断</span>
           <button
             onClick={handleClose}
-            disabled={generating}
+            disabled={generating || fetching}
             className="text-gray-400 hover:text-gray-700 text-xl leading-none px-1 disabled:opacity-30"
           >
             ×
@@ -119,6 +200,32 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
                 ⚠️ 请先在设置页填入 API Key
               </p>
             )}
+
+            {/* 模式切换 */}
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+              <button
+                onClick={() => setMode('auto')}
+                disabled={generating}
+                className={`flex-1 py-2 font-medium transition-colors ${
+                  mode === 'auto'
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                } disabled:opacity-40`}
+              >
+                自动抓取
+              </button>
+              <button
+                onClick={() => setMode('manual')}
+                disabled={generating}
+                className={`flex-1 py-2 font-medium transition-colors ${
+                  mode === 'manual'
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                } disabled:opacity-40`}
+              >
+                手动粘贴
+              </button>
+            </div>
 
             {/* 账号定位 */}
             <div>
@@ -136,23 +243,94 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
               />
             </div>
 
-            {/* 笔记标题与数据 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                笔记标题与数据 <span className="text-rose-500">*</span>
-              </label>
-              <p className="text-xs text-gray-400 mb-1.5">
-                每行一个标题，可附带点赞/收藏数，格式随意。从创作中心复制即可。
-              </p>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={14}
-                disabled={generating}
-                placeholder={`3款CC霜测评\n学生党护肤顺序 赞230 藏156\n封面为什么没人看 赞89\n...`}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none disabled:bg-gray-50 disabled:text-gray-400 font-mono"
-              />
-            </div>
+            {/* 自动抓取模式 */}
+            {mode === 'auto' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    主页链接 <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={profileUrl}
+                    onChange={(e) => setProfileUrl(e.target.value)}
+                    disabled={fetching || generating}
+                    placeholder="https://www.xiaohongshu.com/user/profile/..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 disabled:bg-gray-50 disabled:text-gray-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cookie <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    value={cookie}
+                    onChange={(e) => setCookie(e.target.value)}
+                    rows={3}
+                    disabled={fetching || generating}
+                    placeholder="从浏览器 DevTools → Application → Cookies 复制"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none disabled:bg-gray-50 disabled:text-gray-400 font-mono text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    抓取篇数
+                  </label>
+                  <select
+                    value={fetchCount}
+                    onChange={(e) => setFetchCount(Number(e.target.value))}
+                    disabled={fetching || generating}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 disabled:bg-gray-50 disabled:text-gray-400"
+                  >
+                    <option value={10}>10 篇</option>
+                    <option value={20}>20 篇</option>
+                    <option value={30}>30 篇</option>
+                  </select>
+                </div>
+
+                {fetchError && (
+                  <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    {fetchError}
+                  </p>
+                )}
+
+                {hasFetchedData && (
+                  <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    ✓ 已抓取 {fetchedNotes.length} 篇笔记（含封面图）
+                  </p>
+                )}
+
+                <button
+                  onClick={handleFetch}
+                  disabled={fetching || generating || !profileUrl.trim() || !cookie.trim()}
+                  className="w-full py-2 border border-rose-400 text-rose-500 rounded-lg text-sm font-medium hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {fetching ? '抓取中...' : hasFetchedData ? '重新抓取' : '抓取数据'}
+                </button>
+              </div>
+            )}
+
+            {/* 手动粘贴模式 */}
+            {mode === 'manual' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  笔记标题与数据 <span className="text-rose-500">*</span>
+                </label>
+                <p className="text-xs text-gray-400 mb-1.5">
+                  每行一个标题，可附带点赞/收藏数，格式随意。
+                </p>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={14}
+                  disabled={generating}
+                  placeholder={`3款CC霜测评\n学生党护肤顺序 赞230 藏156\n封面为什么没人看 赞89\n...`}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none disabled:bg-gray-50 disabled:text-gray-400 font-mono"
+                />
+              </div>
+            )}
 
             <button
               onClick={handleGenerate}
@@ -174,7 +352,9 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
 
               {!error && !generating && !rawOutput && (
                 <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                  填写左侧笔记数据后点击「一键诊断」
+                  {mode === 'auto'
+                    ? '先抓取数据，再点击「一键诊断」'
+                    : '填写左侧笔记数据后点击「一键诊断」'}
                 </div>
               )}
 

@@ -25,6 +25,9 @@ export interface DiagnosisRecord {
   positioning: string  // 账号定位（可选，空字符串表示未填）
   noteCount: number    // 粘贴的笔记行数
   content: string      // 完整诊断报告
+  summary: string      // 一句话总结
+  userId: string       // 小红书账号 ID（自动抓取时填入）
+  userName: string     // 小红书账号名称（自动抓取时填入）
 }
 
 export interface StartupRecord {

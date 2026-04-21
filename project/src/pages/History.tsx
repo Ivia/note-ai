@@ -59,7 +59,7 @@ export default function History() {
             导出 .md
           </button>
           <button
-            onClick={() => { deleteHistory(selected.id); setSelected(null) }}
+            onClick={() => { if (confirm('确认删除该历史记录？')) { deleteHistory(selected.id); setSelected(null) } }}
             className="text-xs px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50"
           >
             删除
@@ -118,7 +118,7 @@ export default function History() {
                 导出
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); deleteHistory(item.id) }}
+                onClick={(e) => { e.stopPropagation(); if (confirm('确认删除该历史记录？')) deleteHistory(item.id) }}
                 className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded border border-transparent hover:border-red-200"
               >
                 删除

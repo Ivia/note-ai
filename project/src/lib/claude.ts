@@ -1,17 +1,34 @@
 import Anthropic from '@anthropic-ai/sdk'
 
+export interface ImageInput {
+  mediaType: string
+  data: string  // base64
+}
+
 interface CallClaudeOptions {
   apiKey: string
   baseUrl?: string
   system: string
   userMessage: string
+  images?: ImageInput[]
   onChunk: (text: string) => void
 }
 
-export async function callClaude({ apiKey, baseUrl, system, userMessage, onChunk }: CallClaudeOptions): Promise<string> {
+export async function callClaude({ apiKey, baseUrl, system, userMessage, images, onChunk }: CallClaudeOptions): Promise<string> {
   const clientOpts: ConstructorParameters<typeof Anthropic>[0] = { apiKey, dangerouslyAllowBrowser: true }
   if (baseUrl?.trim()) clientOpts.baseURL = baseUrl.trim()
   const client = new Anthropic(clientOpts)
+
+  type ContentBlock = Anthropic.TextBlockParam | Anthropic.ImageBlockParam
+  const content: string | ContentBlock[] = images?.length
+    ? [
+        { type: 'text', text: userMessage },
+        ...images.map((img): Anthropic.ImageBlockParam => ({
+          type: 'image',
+          source: { type: 'base64', media_type: img.mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: img.data },
+        })),
+      ]
+    : userMessage
 
   // 先尝试流式；企业版网关如不支持 SSE 会报 "no chunks"，回退到非流式
   try {
@@ -19,7 +36,7 @@ export async function callClaude({ apiKey, baseUrl, system, userMessage, onChunk
       model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       system,
-      messages: [{ role: 'user', content: userMessage }],
+      messages: [{ role: 'user', content: content }],
     })
 
     let full = ''
@@ -39,7 +56,7 @@ export async function callClaude({ apiKey, baseUrl, system, userMessage, onChunk
     model: 'claude-sonnet-4-6',
     max_tokens: 8192,
     system,
-    messages: [{ role: 'user', content: userMessage }],
+    messages: [{ role: 'user', content: content }],
   })
   const block = msg.content[0]
   const text = block.type === 'text' ? block.text : ''

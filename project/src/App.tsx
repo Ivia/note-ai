@@ -5,7 +5,7 @@ import History from './pages/History'
 import Startup from './pages/Startup'
 import StartupDetail from './pages/StartupDetail'
 import Diagnosis from './pages/Diagnosis'
-import DiagnosisDetail from './pages/DiagnosisDetail'
+import DiagnosisAccountDetail from './pages/DiagnosisAccountDetail'
 import Settings from './pages/Settings'
 import './index.css'
 
@@ -18,8 +18,10 @@ export default function App() {
           <Route path="history" element={<History />} />
           <Route path="startup" element={<Startup />} />
           <Route path="startup/:id" element={<StartupDetail />} />
-          <Route path="diagnosis" element={<Diagnosis />} />
-          <Route path="diagnosis/:id" element={<DiagnosisDetail />} />
+          <Route path="diagnosis">
+            <Route index element={<Diagnosis />} />
+            <Route path="account/:accountId" element={<DiagnosisAccountDetail />} />
+          </Route>
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
