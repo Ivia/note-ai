@@ -98,7 +98,7 @@ function DetailView({ item, onBack }: { item: HistoryItem; onBack: () => void })
 }
 
 export default function SinglePost() {
-  const { history, deleteHistory, clearHistory } = useStore()
+  const { history, deleteHistory } = useStore()
   const [selected, setSelected] = useState<HistoryItem | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -126,15 +126,7 @@ export default function SinglePost() {
         </div>
       ) : (
         <>
-          <div className="flex justify-end">
-            <button
-              onClick={() => { if (confirm('确认清空全部历史？')) clearHistory() }}
-              className="text-xs text-red-400 hover:text-red-600"
-            >
-              清空全部
-            </button>
-          </div>
-          <div className="space-y-2">
+<div className="space-y-2">
             {history.map((item) => (
               <div
                 key={item.id}
