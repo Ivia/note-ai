@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import SinglePost from './pages/SinglePost'
-import History from './pages/History'
 import Startup from './pages/Startup'
 import StartupDetail from './pages/StartupDetail'
 import Diagnosis from './pages/Diagnosis'
@@ -15,7 +14,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<SinglePost />} />
-          <Route path="history" element={<History />} />
+          <Route path="history" element={<Navigate to="/" replace />} />
           <Route path="startup" element={<Startup />} />
           <Route path="startup/:id" element={<StartupDetail />} />
           <Route path="diagnosis">

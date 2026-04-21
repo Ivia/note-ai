@@ -1,338 +1,174 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
-import { callClaude, friendlyError } from '../lib/claude'
-import { buildSinglePostPrompt, STYLE_PRESETS } from '../lib/prompts/singlePost'
-import ResultModal from '../components/ResultModal'
-import UrlInput, { validateUrls } from '../components/UrlInput'
-import CookieInput from '../components/CookieInput'
-import { fetchNoteContent, coverUrlToBase64, parseDataUrl } from '../lib/xhs'
-import type { NoteContent } from '../lib/xhs'
-import { useNavigate } from 'react-router-dom'
+import type { HistoryItem } from '../lib/store'
+import SinglePostModal from '../components/SinglePostModal'
 
-type RefMode = 'url' | 'manual'
-
-interface Sections {
-  titles: string
-  body: string
-  tags: string
-  images: string
+function formatDate(ts: number) {
+  return new Date(ts).toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  }).replace(/\//g, '-')
 }
 
-function parseSections(raw: string): Sections {
-  const get = (heading: string) => {
-    const re = new RegExp(`## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`)
-    return (raw.match(re)?.[1] ?? '').trim()
-  }
-  return {
-    titles: get('标题候选'),
-    body: get('正文'),
-    tags: get('话题标签'),
-    images: get('配图思路'),
-  }
-}
+function DetailView({ item, onBack }: { item: HistoryItem; onBack: () => void }) {
+  const { deleteHistory } = useStore()
+  const [copied, setCopied] = useState(false)
 
-function formatFetchedNotes(notes: NoteContent[]): string {
-  return notes
-    .map((n, i) => {
-      const parts = [`【参考笔记${i + 1}】标题：${n.title}`]
-      if (n.content) parts.push(`正文：${n.content}`)
-      if (n.tags.length > 0) parts.push(`标签：${n.tags.join(' ')}`)
-      return parts.join('\n')
-    })
-    .join('\n\n')
-}
-
-export default function SinglePost() {
-  const { apiKey, baseUrl, addHistory, xhsCookie, setXhsCookie } = useStore()
-  const navigate = useNavigate()
-
-  const [topic, setTopic] = useState('')
-  const [selling, setSelling] = useState('')
-  const [style, setStyle] = useState(STYLE_PRESETS[0])
-  const [customStyle, setCustomStyle] = useState('')
-
-  // 参考笔记区
-  const [refMode, setRefMode] = useState<RefMode>('manual')
-  const [refUrls, setRefUrls] = useState('')
-  const [refFetching, setRefFetching] = useState(false)
-  const [refFetchError, setRefFetchError] = useState('')
-  const [fetchedNotes, setFetchedNotes] = useState<NoteContent[]>([])
-  const [manualReference, setManualReference] = useState('')
-
-  const [modalOpen, setModalOpen] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [rawOutput, setRawOutput] = useState('')
-  const [error, setError] = useState('')
-  const [savedToHistory, setSavedToHistory] = useState(false)
-
-  const hasFetchedNotes = fetchedNotes.length > 0
-  const canGenerate = !generating && !!apiKey && topic.trim() !== '' && selling.trim() !== ''
-  const sections = rawOutput ? parseSections(rawOutput) : null
-  const effectiveStyle = style === '自由发挥' ? (customStyle || '自由发挥') : style
-
-  async function handleFetchNotes() {
-    const { urls, errors } = validateUrls(refUrls, 'note')
-    if (errors.length > 0 || urls.length === 0) {
-      setRefFetchError('请输入有效的小红书笔记链接')
-      return
-    }
-    if (!xhsCookie.trim()) {
-      setRefFetchError('请填写 Cookie')
-      return
-    }
-    setRefFetchError('')
-    setFetchedNotes([])
-    setRefFetching(true)
-    try {
-      const notes = await fetchNoteContent(urls.slice(0, 3), xhsCookie.trim())
-      setFetchedNotes(notes)
-    } catch (err) {
-      setRefFetchError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setRefFetching(false)
-    }
+  async function handleCopy() {
+    await navigator.clipboard.writeText(item.content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
 
-  async function runGenerate() {
-    if (!apiKey) { navigate('/settings'); return }
-
-    setError('')
-    setRawOutput('')
-    setSavedToHistory(false)
-    setGenerating(true)
-    setModalOpen(true)
-
-    let reference: string | undefined
-    let images: { mediaType: string; data: string }[] | undefined
-
-    if (refMode === 'url' && hasFetchedNotes) {
-      reference = formatFetchedNotes(fetchedNotes)
-      // 收集每篇笔记的图片（最多每篇3张，总计最多6张）
-      try {
-        const imageUrls = fetchedNotes.flatMap((n) => n.imageUrls.slice(0, 3)).slice(0, 6)
-        if (imageUrls.length > 0) {
-          const dataUrls = await Promise.all(imageUrls.map((u) => coverUrlToBase64(u)))
-          images = dataUrls.map(parseDataUrl)
-        }
-      } catch {
-        // 图片获取失败不中断，降级为纯文本
-      }
-    } else if (refMode === 'manual' && manualReference.trim()) {
-      reference = manualReference.trim()
-    }
-
-    const { system, user } = buildSinglePostPrompt({
-      topic: topic.trim(),
-      selling: selling.trim(),
-      style: effectiveStyle,
-      reference,
-      hasReferenceImages: images && images.length > 0,
-    })
-
-    try {
-      const full = await callClaude({
-        apiKey,
-        baseUrl: baseUrl || undefined,
-        system,
-        userMessage: user,
-        images,
-        onChunk: (chunk) => setRawOutput((prev) => prev + chunk),
-      })
-      void full
-    } catch (err) {
-      setError(friendlyError(err))
-    } finally {
-      setGenerating(false)
-    }
+  function handleExport() {
+    const blob = new Blob([item.content], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${item.topic.slice(0, 20)}.md`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
-  function handleSave() {
-    if (!rawOutput || savedToHistory) return
-    addHistory({
-      id: crypto.randomUUID(),
-      topic: topic.trim(),
-      createdAt: Date.now(),
-      content: rawOutput,
-      model: 'claude-sonnet-4-6',
-    })
-    setSavedToHistory(true)
-    setModalOpen(false)
+  function handleDelete() {
+    if (confirm('确认删除该历史记录？')) {
+      deleteHistory(item.id)
+      onBack()
+    }
   }
 
   return (
-    <div className="space-y-5">
-      <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-base font-semibold text-gray-800">一键生成小红书文案</h1>
-          <button
-            onClick={() => navigate('/history')}
-            className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border border-gray-200 rounded-lg hover:border-gray-300"
-          >
-            历史记录 →
-          </button>
-        </div>
-
-        {!apiKey && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-            ⚠️ 请先前往{' '}
-            <button onClick={() => navigate('/settings')} className="underline font-medium">
-              设置页
-            </button>{' '}
-            填入 Claude API Key。
-          </div>
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-800">
+          ← 返回列表
+        </button>
+        <span className="text-sm text-gray-400">{formatDate(item.createdAt)}</span>
+        {item.model && (
+          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-mono">
+            {item.model}
+          </span>
         )}
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            笔记主题 <span className="text-rose-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="如：推荐 3 款平价 CC 霜"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            核心卖点 / 想表达的信息 <span className="text-rose-500">*</span>
-          </label>
-          <textarea
-            value={selling}
-            onChange={(e) => setSelling(e.target.value)}
-            rows={3}
-            placeholder="如：持妆久、不卡粉、学生党预算内都能买"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">风格</label>
-          <div className="flex flex-wrap gap-2">
-            {STYLE_PRESETS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStyle(s)}
-                className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
-                  style === s
-                    ? 'bg-rose-500 text-white border-rose-500'
-                    : 'border-gray-300 text-gray-600 hover:border-rose-400'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-          {style === '自由发挥' && (
-            <input
-              type="text"
-              value={customStyle}
-              onChange={(e) => setCustomStyle(e.target.value)}
-              placeholder="描述你想要的风格..."
-              className="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
-            />
-          )}
-        </div>
-
-        {/* 参考笔记区域 */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700">
-              参考笔记 <span className="text-gray-400 font-normal">（可选）</span>
-            </label>
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
-              <button
-                type="button"
-                onClick={() => setRefMode('url')}
-                className={`px-3 py-1.5 font-medium transition-colors ${
-                  refMode === 'url' ? 'bg-rose-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                链接抓取
-              </button>
-              <button
-                type="button"
-                onClick={() => setRefMode('manual')}
-                className={`px-3 py-1.5 font-medium transition-colors ${
-                  refMode === 'manual' ? 'bg-rose-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                手动粘贴
-              </button>
-            </div>
-          </div>
-
-          {refMode === 'url' && (
-            <div className="space-y-3">
-              <UrlInput
-                mode="note"
-                value={refUrls}
-                onChange={(v) => { setRefUrls(v); setFetchedNotes([]); setRefFetchError('') }}
-                disabled={refFetching || generating}
-              />
-
-              <CookieInput
-                value={xhsCookie}
-                onChange={setXhsCookie}
-                disabled={refFetching || generating}
-              />
-
-              {refFetchError && (
-                <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  {refFetchError}
-                </p>
-              )}
-
-              {hasFetchedNotes && (
-                <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                  ✓ 已抓取 {fetchedNotes.length} 篇参考笔记（含图片）
-                </p>
-              )}
-
-              <button
-                type="button"
-                onClick={handleFetchNotes}
-                disabled={refFetching || generating || !refUrls.trim() || !xhsCookie.trim()}
-                className="w-full py-2 border border-rose-400 text-rose-500 rounded-lg text-sm font-medium hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {refFetching ? '抓取中...' : hasFetchedNotes ? '重新抓取' : '抓取笔记'}
-              </button>
-            </div>
-          )}
-
-          {refMode === 'manual' && (
-            <textarea
-              value={manualReference}
-              onChange={(e) => setManualReference(e.target.value)}
-              rows={3}
-              placeholder="粘贴一段你喜欢的爆款笔记，AI 会学习其风格和结构"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
-            />
-          )}
-        </div>
-
+      </div>
+      <h2 className="text-base font-semibold text-gray-800">{item.topic}</h2>
+      <div className="flex gap-2">
         <button
-          onClick={runGenerate}
-          disabled={!canGenerate}
-          className="w-full py-2.5 bg-rose-500 text-white rounded-lg font-medium text-sm hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          onClick={handleCopy}
+          className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50"
         >
-          {generating ? '生成中...' : '✨ 一键生成'}
+          {copied ? '已复制 ✓' : '复制 Markdown'}
+        </button>
+        <button
+          onClick={handleExport}
+          className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50"
+        >
+          导出 .md
+        </button>
+        <button
+          onClick={handleDelete}
+          className="text-xs px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50"
+        >
+          删除
+        </button>
+      </div>
+      <div className="bg-white border border-gray-200 rounded-xl p-4 whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
+        {item.content}
+      </div>
+    </div>
+  )
+}
+
+export default function SinglePost() {
+  const { history, deleteHistory, clearHistory } = useStore()
+  const [selected, setSelected] = useState<HistoryItem | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+
+  if (selected) {
+    return <DetailView item={selected} onBack={() => setSelected(null)} />
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-base font-semibold text-gray-800">生成文案</h1>
+        <button
+          onClick={() => setModalOpen(true)}
+          className="px-3 py-1.5 text-sm bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors"
+        >
+          + 新文案
         </button>
       </div>
 
-      <ResultModal
+      {history.length === 0 ? (
+        <div className="text-center text-gray-400 py-20 text-sm">
+          <p className="text-3xl mb-3">✨</p>
+          <p>还没有文案记录</p>
+          <p className="mt-1">点击右上角「新文案」开始吧</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-end">
+            <button
+              onClick={() => { if (confirm('确认清空全部历史？')) clearHistory() }}
+              className="text-xs text-red-400 hover:text-red-600"
+            >
+              清空全部
+            </button>
+          </div>
+          <div className="space-y-2">
+            {history.map((item) => (
+              <div
+                key={item.id}
+                className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between hover:border-rose-200 cursor-pointer transition-colors"
+                onClick={() => setSelected(item)}
+              >
+                <div>
+                  <p className="text-sm font-medium text-gray-800 truncate max-w-xs">{item.topic}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-gray-400">{formatDate(item.createdAt)}</p>
+                    {item.model && (
+                      <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">
+                        {item.model}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 ml-4 shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const blob = new Blob([item.content], { type: 'text/markdown' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `${item.topic.slice(0, 20)}.md`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    }}
+                    className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded border border-transparent hover:border-gray-200"
+                  >
+                    导出
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (confirm('确认删除该历史记录？')) deleteHistory(item.id)
+                    }}
+                    className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded border border-transparent hover:border-red-200"
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <SinglePostModal
         open={modalOpen}
-        generating={generating}
-        rawOutput={rawOutput}
-        sections={sections}
-        savedToHistory={savedToHistory}
-        error={error}
         onClose={() => setModalOpen(false)}
-        onRegenerate={runGenerate}
-        onSave={handleSave}
+        onSaved={() => setModalOpen(false)}
       />
     </div>
   )
