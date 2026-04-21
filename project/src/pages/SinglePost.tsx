@@ -51,6 +51,25 @@ function DetailView({ item, onBack }: { item: HistoryItem; onBack: () => void })
         )}
       </div>
       <h2 className="text-base font-semibold text-gray-800">{item.topic}</h2>
+      {(item.noteType || (item.styleWriting && item.styleWriting !== '自由发挥') || (item.styleContent && item.styleContent !== '自由发挥')) && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {item.noteType && (
+            <span className="text-xs bg-blue-50 text-blue-500 border border-blue-100 px-1.5 py-0.5 rounded">
+              {item.noteType === 'image' ? '图文' : '视频'}
+            </span>
+          )}
+          {item.styleWriting && item.styleWriting !== '自由发挥' && (
+            <span className="text-xs bg-rose-50 text-rose-500 border border-rose-100 px-1.5 py-0.5 rounded">
+              {item.styleWriting}
+            </span>
+          )}
+          {item.styleContent && item.styleContent !== '自由发挥' && (
+            <span className="text-xs bg-purple-50 text-purple-500 border border-purple-100 px-1.5 py-0.5 rounded">
+              {item.styleContent}
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex gap-2">
         <button
           onClick={handleCopy}
@@ -124,6 +143,23 @@ export default function SinglePost() {
               >
                 <div>
                   <p className="text-sm font-medium text-gray-800 truncate max-w-xs">{item.topic}</p>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {item.noteType && (
+                      <span className="text-xs bg-blue-50 text-blue-500 border border-blue-100 px-1.5 py-0.5 rounded">
+                        {item.noteType === 'image' ? '图文' : '视频'}
+                      </span>
+                    )}
+                    {item.styleWriting && item.styleWriting !== '自由发挥' && (
+                      <span className="text-xs bg-rose-50 text-rose-500 border border-rose-100 px-1.5 py-0.5 rounded">
+                        {item.styleWriting}
+                      </span>
+                    )}
+                    {item.styleContent && item.styleContent !== '自由发挥' && (
+                      <span className="text-xs bg-purple-50 text-purple-500 border border-purple-100 px-1.5 py-0.5 rounded">
+                        {item.styleContent}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <p className="text-xs text-gray-400">{formatDate(item.createdAt)}</p>
                     {item.model && (

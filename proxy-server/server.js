@@ -91,12 +91,16 @@ app.post('/api/user-notes', async (req, res) => {
     // 从 DOM 提取账号信息
     const accountInfo = await page.evaluate(() => {
       const nameEl = document.querySelector('.user-name, .username, [data-v-3ce3c27d] .user-name, .info .name')
-      const idEl = document.querySelector('.user-redId, .red-id, .userId')
+      const redIdEl = document.querySelector('.user-redId, .red-id, .userId')
       // 从 URL 中提取 userId
       const urlMatch = location.pathname.match(/\/user\/profile\/([a-f0-9]{24})/)
+      // 小红书号形如 "小红书号：abc123"，去掉前缀取纯号码
+      const rawRedId = redIdEl?.textContent?.trim() || ''
+      const userRedId = rawRedId.replace(/^.*[：:]\s*/, '').trim()
       return {
         userName: nameEl?.textContent?.trim() || '',
         userId: urlMatch?.[1] || '',
+        userRedId,
       }
     })
 

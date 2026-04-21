@@ -12,6 +12,7 @@ export interface FetchUserNotesResult {
   notes: XhsNote[]
   userId: string
   userName: string
+  userRedId: string
 }
 
 export async function fetchUserNotes(
@@ -26,7 +27,7 @@ export async function fetchUserNotes(
   })
   const data = await res.json()
   if (!res.ok || !data.success) throw new Error(data.error || '抓取失败')
-  return { notes: data.notes, userId: data.userId || '', userName: data.userName || '' }
+  return { notes: data.notes, userId: data.userId || '', userName: data.userName || '', userRedId: data.userRedId || '' }
 }
 
 // 将封面图 URL 转为 base64 data URL（用于 Claude vision）

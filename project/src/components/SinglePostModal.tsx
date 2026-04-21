@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { callClaude, friendlyError } from '../lib/claude'
-import { buildSinglePostPrompt, STYLE_PRESETS } from '../lib/prompts/singlePost'
+import { buildSinglePostPrompt, STYLE_WRITING, STYLE_CONTENT } from '../lib/prompts/singlePost'
 import UrlInput, { validateUrls } from './UrlInput'
 import CookieInput from './CookieInput'
 import { fetchNoteContent, coverUrlToBase64, parseDataUrl } from '../lib/xhs'
@@ -16,6 +16,7 @@ interface Props {
 const MODEL = 'claude-sonnet-4-6'
 
 type RefMode = 'url' | 'manual'
+type NoteType = 'image' | 'video'
 
 function formatFetchedNotes(notes: NoteContent[]): string {
   return notes
@@ -31,10 +32,11 @@ function formatFetchedNotes(notes: NoteContent[]): string {
 export default function SinglePostModal({ open, onClose, onSaved }: Props) {
   const { apiKey, baseUrl, addHistory, xhsCookie, setXhsCookie } = useStore()
 
+  const [noteType, setNoteType] = useState<NoteType>('image')
   const [topic, setTopic] = useState('')
   const [selling, setSelling] = useState('')
-  const [style, setStyle] = useState(STYLE_PRESETS[0])
-  const [customStyle, setCustomStyle] = useState('')
+  const [styleWriting, setStyleWriting] = useState('自由发挥')
+  const [styleContent, setStyleContent] = useState('自由发挥')
 
   const [refMode, setRefMode] = useState<RefMode>('manual')
   const [refUrls, setRefUrls] = useState('')
@@ -58,10 +60,11 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
 
   useEffect(() => {
     if (!open) return
+    setNoteType('image')
     setTopic('')
     setSelling('')
-    setStyle(STYLE_PRESETS[0])
-    setCustomStyle('')
+    setStyleWriting('自由发挥')
+    setStyleContent('自由发挥')
     setRefMode('manual')
     setRefUrls('')
     setRefFetching(false)
@@ -77,7 +80,6 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
   if (!open) return null
 
   const hasFetchedNotes = fetchedNotes.length > 0
-  const effectiveStyle = style === '自由发挥' ? (customStyle || '自由发挥') : style
   const canGenerate = !generating && !!apiKey && topic.trim() !== '' && selling.trim() !== ''
 
   async function handleFetchNotes() {
@@ -130,7 +132,9 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
     const { system, user } = buildSinglePostPrompt({
       topic: topic.trim(),
       selling: selling.trim(),
-      style: effectiveStyle,
+      noteType,
+      styleWriting,
+      styleContent,
       reference,
       hasReferenceImages: images && images.length > 0,
     })
@@ -159,6 +163,9 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
       createdAt: Date.now(),
       content: rawOutput,
       model: MODEL,
+      noteType,
+      styleWriting,
+      styleContent,
     })
     setSaved(true)
     onSaved()
@@ -195,6 +202,30 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
               </p>
             )}
 
+            {/* 笔记形式 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">笔记形式</label>
+              <div className="flex gap-4">
+                {(['image', 'video'] as NoteType[]).map((t) => (
+                  <label key={t} className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="noteType"
+                      value={t}
+                      checked={noteType === t}
+                      onChange={() => setNoteType(t)}
+                      disabled={generating}
+                      className="accent-rose-500 disabled:opacity-40"
+                    />
+                    <span className={`text-sm ${generating ? 'text-gray-400' : 'text-gray-700'}`}>
+                      {t === 'image' ? '图文' : '视频'}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 笔记主题 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 笔记主题 <span className="text-rose-500">*</span>
@@ -209,6 +240,7 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
               />
             </div>
 
+            {/* 核心卖点 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 核心卖点 / 想表达的信息 <span className="text-rose-500">*</span>
@@ -223,17 +255,18 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
               />
             </div>
 
+            {/* 文风 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">风格</label>
-              <div className="flex flex-wrap gap-2">
-                {STYLE_PRESETS.map((s) => (
+              <label className="block text-sm font-medium text-gray-700 mb-2">文风</label>
+              <div className="flex flex-wrap gap-1.5">
+                {STYLE_WRITING.map((s) => (
                   <button
                     key={s}
                     type="button"
-                    onClick={() => setStyle(s)}
+                    onClick={() => setStyleWriting(s)}
                     disabled={generating}
-                    className={`px-3 py-1.5 text-sm rounded-full border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                      style === s
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      styleWriting === s
                         ? 'bg-rose-500 text-white border-rose-500'
                         : 'border-gray-300 text-gray-600 hover:border-rose-400'
                     }`}
@@ -242,16 +275,28 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
                   </button>
                 ))}
               </div>
-              {style === '自由发挥' && (
-                <input
-                  type="text"
-                  value={customStyle}
-                  onChange={(e) => setCustomStyle(e.target.value)}
-                  disabled={generating}
-                  placeholder="描述你想要的风格..."
-                  className="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 disabled:bg-gray-50 disabled:text-gray-400"
-                />
-              )}
+            </div>
+
+            {/* 内容形式 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">内容形式</label>
+              <div className="flex flex-wrap gap-1.5">
+                {STYLE_CONTENT.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStyleContent(s)}
+                    disabled={generating}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      styleContent === s
+                        ? 'bg-rose-500 text-white border-rose-500'
+                        : 'border-gray-300 text-gray-600 hover:border-rose-400'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* 参考笔记 */}
@@ -353,7 +398,12 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
                 </div>
               )}
               {!error && generating && !rawOutput && (
-                <p className="text-sm text-gray-400 animate-pulse">正在生成，请稍候...</p>
+                <p className="text-sm text-gray-400 animate-pulse">
+                  正在生成，请稍候... <span className="not-italic text-gray-300">已用时 {elapsed}s</span>
+                </p>
+              )}
+              {!error && generating && rawOutput && (
+                <p className="text-xs text-gray-300 text-right">已用时 {elapsed}s</p>
               )}
               {!error && rawOutput && (
                 <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">

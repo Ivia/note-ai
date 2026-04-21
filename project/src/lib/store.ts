@@ -7,6 +7,9 @@ export interface HistoryItem {
   createdAt: number
   content: string
   model: string
+  noteType?: 'image' | 'video'
+  styleWriting?: string
+  styleContent?: string
 }
 
 export interface StartupNote {
@@ -26,8 +29,9 @@ export interface DiagnosisRecord {
   noteCount: number    // 粘贴的笔记行数
   content: string      // 完整诊断报告
   summary: string      // 一句话总结
-  userId: string       // 小红书账号 ID（自动抓取时填入）
+  userId: string       // 小红书账号 ID（自动抓取时填入，仅存储不展示）
   userName: string     // 小红书账号名称（自动抓取时填入）
+  userRedId: string    // 小红书号（形如 xiaohongshu123，有则展示代替 userId）
 }
 
 export interface StartupRecord {

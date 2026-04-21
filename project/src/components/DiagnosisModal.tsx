@@ -45,7 +45,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState('')
   const [fetchedNotes, setFetchedNotes] = useState<XhsNote[]>([])
-  const [fetchedAccount, setFetchedAccount] = useState<Pick<FetchUserNotesResult, 'userId' | 'userName'>>({ userId: '', userName: '' })
+  const [fetchedAccount, setFetchedAccount] = useState<Pick<FetchUserNotesResult, 'userId' | 'userName' | 'userRedId'>>({ userId: '', userName: '', userRedId: '' })
 
   // 手动粘贴模式
   const [notes, setNotes] = useState('')
@@ -103,7 +103,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
     try {
       const result = await fetchUserNotes(profileUrl.trim(), xhsCookie.trim(), fetchCount)
       setFetchedNotes(result.notes)
-      setFetchedAccount({ userId: result.userId, userName: result.userName })
+      setFetchedAccount({ userId: result.userId, userName: result.userName, userRedId: result.userRedId })
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -171,6 +171,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
       summary: extractSummary(rawOutput),
       userId: mode === 'auto' ? fetchedAccount.userId : '',
       userName: mode === 'auto' ? fetchedAccount.userName : '',
+      userRedId: mode === 'auto' ? fetchedAccount.userRedId : '',
     })
     setSaved(true)
     onSaved()
@@ -351,7 +352,13 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
               )}
 
               {!error && generating && !rawOutput && (
-                <p className="text-sm text-gray-400 animate-pulse">正在分析，请稍候...</p>
+                <p className="text-sm text-gray-400 animate-pulse">
+                  正在分析，请稍候... <span className="not-italic text-gray-300">已用时 {elapsed}s</span>
+                </p>
+              )}
+
+              {!error && generating && rawOutput && (
+                <p className="text-xs text-gray-300 text-right">已用时 {elapsed}s</p>
               )}
 
               {!error && rawOutput && (

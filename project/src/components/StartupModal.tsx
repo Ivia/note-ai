@@ -389,7 +389,13 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
               )}
 
               {!error && generating && !rawOutput && (
-                <p className="text-sm text-gray-400 animate-pulse">正在生成，请稍候...</p>
+                <p className="text-sm text-gray-400 animate-pulse">
+                  正在生成，请稍候... <span className="not-italic text-gray-300">已用时 {elapsed}s</span>
+                </p>
+              )}
+
+              {!error && generating && rawOutput && (
+                <p className="text-xs text-gray-300 text-right">已用时 {elapsed}s</p>
               )}
 
               {!error && rawOutput && (

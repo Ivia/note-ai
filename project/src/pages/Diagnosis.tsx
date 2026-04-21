@@ -16,6 +16,7 @@ function formatDate(ts: number) {
 interface AccountGroup {
   accountId: string   // userId 或 fallback key
   userName: string
+  userRedId: string
   latestTime: number
   totalCount: number
   totalNotes: number
@@ -36,6 +37,7 @@ export default function Diagnosis() {
         map.set(key, {
           accountId: key,
           userName: r.userName || r.positioning || '手动粘贴',
+          userRedId: r.userRedId || '',
           latestTime: r.createdAt,
           totalCount: 0,
           totalNotes: 0,
@@ -49,6 +51,7 @@ export default function Diagnosis() {
       if (r.createdAt > g.latestTime) {
         g.latestTime = r.createdAt
         g.userName = r.userName || r.positioning || '手动粘贴'
+        if (r.userRedId) g.userRedId = r.userRedId
       }
     }
     return Array.from(map.values()).sort((a, b) => b.latestTime - a.latestTime)
@@ -85,9 +88,9 @@ export default function Diagnosis() {
                   <p className="text-sm font-medium text-gray-800 truncate">{g.userName}</p>
                   {g.accountId.startsWith('manual-') ? (
                     <p className="text-xs text-gray-400 mt-0.5">手动粘贴</p>
-                  ) : (
-                    <p className="text-xs text-gray-400 mt-0.5 font-mono truncate">ID: {g.accountId}</p>
-                  )}
+                  ) : g.userRedId ? (
+                    <p className="text-xs text-gray-400 mt-0.5 font-mono truncate">小红书号: {g.userRedId}</p>
+                  ) : null}
                   <p className="text-xs text-gray-500 mt-0.5">最近诊断：{formatDate(g.latestTime)}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     诊断 {g.totalCount} 次 · 共分析 {g.totalNotes} 篇
