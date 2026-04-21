@@ -47,6 +47,8 @@ interface Store {
   setApiKey: (k: string) => void
   baseUrl: string
   setBaseUrl: (u: string) => void
+  xhsCookie: string
+  setXhsCookie: (c: string) => void
   history: HistoryItem[]
   addHistory: (item: HistoryItem) => void
   deleteHistory: (id: string) => void
@@ -69,6 +71,8 @@ export const useStore = create<Store>()(
       setApiKey: (k) => set({ apiKey: k }),
       baseUrl: '',
       setBaseUrl: (u) => set({ baseUrl: u }),
+      xhsCookie: '',
+      setXhsCookie: (c) => set({ xhsCookie: c }),
       history: [],
       addHistory: (item) =>
         set((s) => ({ history: [item, ...s.history].slice(0, 100) })),

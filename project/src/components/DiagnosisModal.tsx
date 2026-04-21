@@ -4,6 +4,7 @@ import { callClaude, friendlyError } from '../lib/claude'
 import { buildDiagnosisPrompt } from '../lib/prompts/diagnosis'
 import { fetchUserNotes, coverUrlToBase64, parseDataUrl } from '../lib/xhs'
 import type { XhsNote, FetchUserNotesResult } from '../lib/xhs'
+import CookieInput from './CookieInput'
 
 interface Props {
   open: boolean
@@ -32,14 +33,13 @@ function countNotes(raw: string) {
 }
 
 export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
-  const { apiKey, baseUrl, addDiagnosisRecord } = useStore()
+  const { apiKey, baseUrl, addDiagnosisRecord, xhsCookie, setXhsCookie } = useStore()
 
   const [mode, setMode] = useState<InputMode>('auto')
   const [positioning, setPositioning] = useState('')
 
   // 自动抓取模式
   const [profileUrl, setProfileUrl] = useState('')
-  const [cookie, setCookie] = useState('')
   const [fetchCount, setFetchCount] = useState(20)
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState('')
@@ -67,7 +67,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
     setMode('auto')
     setPositioning('')
     setProfileUrl('')
-    setCookie('')
+    // xhsCookie 来自 store，不重置
     setFetchCount(20)
     setFetching(false)
     setFetchError('')
@@ -87,7 +87,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
   const canGenerate = !generating && !!apiKey && (mode === 'auto' ? hasFetchedData : hasManualData)
 
   async function handleFetch() {
-    if (!profileUrl.trim() || !cookie.trim()) {
+    if (!profileUrl.trim() || !xhsCookie.trim()) {
       setFetchError('请填写主页链接和 Cookie')
       return
     }
@@ -95,7 +95,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
     setFetchedNotes([])
     setFetching(true)
     try {
-      const result = await fetchUserNotes(profileUrl.trim(), cookie.trim(), fetchCount)
+      const result = await fetchUserNotes(profileUrl.trim(), xhsCookie.trim(), fetchCount)
       setFetchedNotes(result.notes)
       setFetchedAccount({ userId: result.userId, userName: result.userName })
     } catch (err) {
@@ -260,19 +260,11 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cookie <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    value={cookie}
-                    onChange={(e) => setCookie(e.target.value)}
-                    rows={3}
-                    disabled={fetching || generating}
-                    placeholder="从浏览器 DevTools → Application → Cookies 复制"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none disabled:bg-gray-50 disabled:text-gray-400 font-mono text-xs"
-                  />
-                </div>
+                <CookieInput
+                  value={xhsCookie}
+                  onChange={setXhsCookie}
+                  disabled={fetching || generating}
+                />
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -304,7 +296,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
 
                 <button
                   onClick={handleFetch}
-                  disabled={fetching || generating || !profileUrl.trim() || !cookie.trim()}
+                  disabled={fetching || generating || !profileUrl.trim() || !xhsCookie.trim()}
                   className="w-full py-2 border border-rose-400 text-rose-500 rounded-lg text-sm font-medium hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   {fetching ? '抓取中...' : hasFetchedData ? '重新抓取' : '抓取数据'}

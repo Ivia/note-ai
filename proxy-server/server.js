@@ -131,6 +131,34 @@ app.post('/api/user-notes', async (req, res) => {
   }
 })
 
+// 校验 Cookie 是否有效（请求小红书用户信息接口）
+app.post('/api/validate-cookie', async (req, res) => {
+  const { cookie } = req.body
+  if (!cookie) return res.status(400).json({ valid: false, error: '缺少 cookie' })
+
+  let context = null
+  try {
+    const b = await getBrowser()
+    context = await b.newContext({
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    })
+    await context.addCookies(parseCookieString(cookie))
+    const page = await context.newPage()
+
+    const response = await page.goto('https://edith.xiaohongshu.com/api/sns/web/v2/user/me', {
+      waitUntil: 'commit',
+      timeout: 10000,
+    })
+    const json = await response.json().catch(() => null)
+    const valid = json?.code === 0 && json?.success === true && !json?.data?.guest
+    res.json({ valid, userName: json?.data?.nickname || '' })
+  } catch {
+    res.json({ valid: false })
+  } finally {
+    if (context) await context.close().catch(() => {})
+  }
+})
+
 // 封面图代理（绕过 CORS）
 app.get('/img-proxy', (req, res) => {
   const { url } = req.query
