@@ -63,6 +63,20 @@ export async function fetchNoteContent(urls: string[], cookie: string): Promise<
   return data.notes
 }
 
+export async function validateCookie(cookie: string): Promise<boolean> {
+  try {
+    const res = await fetch('/xhs-api/api/validate-cookie', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookie }),
+    })
+    const data = await res.json()
+    return data.valid === true
+  } catch {
+    return false
+  }
+}
+
 // 从 data URL 中解析 base64 数据和 mediaType
 export function parseDataUrl(dataUrl: string): { mediaType: string; data: string } {
   const [header, data] = dataUrl.split(',')

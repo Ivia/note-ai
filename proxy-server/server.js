@@ -235,6 +235,57 @@ app.post('/api/validate-cookie', async (req, res) => {
   }
 })
 
+// 扫码登录小红书，返回捕获到的 cookie 字符串
+app.post('/api/login-xhs', async (req, res) => {
+  let loginBrowser = null
+  try {
+    // 单独启动一个有界面的浏览器，不复用 headless 的 browser 实例
+    loginBrowser = await chromium.launch({
+      headless: false,
+      args: ['--window-size=500,700'],
+    })
+    const context = await loginBrowser.newContext({
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      viewport: { width: 500, height: 700 },
+    })
+    const page = await context.newPage()
+    await page.goto('https://www.xiaohongshu.com', { waitUntil: 'domcontentloaded', timeout: 15000 })
+
+    // 轮询检测登录成功（每 2s 调用用户信息接口确认非 guest，最多等 3 分钟）
+    const deadline = Date.now() + 3 * 60 * 1000
+    let loggedIn = false
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(2000)
+      try {
+        const resp = await context.request.get('https://edith.xiaohongshu.com/api/sns/web/v2/user/me')
+        const json = await resp.json().catch(() => null)
+        if (json?.code === 0 && json?.success === true && !json?.data?.guest) {
+          loggedIn = true
+          break
+        }
+      } catch {
+        // 未登录时接口可能报错，继续等待
+      }
+    }
+
+    if (!loggedIn) {
+      await loginBrowser.close()
+      return res.status(408).json({ error: '登录超时，请重试' })
+    }
+
+    // 等 1s 让其他 cookie 写入完毕
+    await page.waitForTimeout(1000)
+    const allCookies = await context.cookies('https://www.xiaohongshu.com')
+    const cookieStr = allCookies.map(c => `${c.name}=${c.value}`).join('; ')
+
+    await loginBrowser.close()
+    res.json({ success: true, cookie: cookieStr })
+  } catch (err) {
+    if (loginBrowser) await loginBrowser.close().catch(() => {})
+    res.status(500).json({ error: err.message || '登录失败' })
+  }
+})
+
 // 封面图代理（绕过 CORS）
 app.get('/img-proxy', (req, res) => {
   const { url } = req.query
