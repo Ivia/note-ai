@@ -5,6 +5,7 @@ import { buildDiagnosisPrompt } from '../lib/prompts/diagnosis'
 import { fetchUserNotes, coverUrlToBase64, parseDataUrl } from '../lib/xhs'
 import type { XhsNote, FetchUserNotesResult } from '../lib/xhs'
 import CookieInput from './CookieInput'
+import UrlInput, { validateUrls } from './UrlInput'
 
 interface Props {
   open: boolean
@@ -89,6 +90,11 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
   async function handleFetch() {
     if (!profileUrl.trim() || !xhsCookie.trim()) {
       setFetchError('请填写主页链接和 Cookie')
+      return
+    }
+    const { urls, errors } = validateUrls(profileUrl, 'profile')
+    if (errors.length > 0 || urls.length === 0) {
+      setFetchError('请输入有效的小红书主页链接')
       return
     }
     setFetchError('')
@@ -246,19 +252,13 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
             {/* 自动抓取模式 */}
             {mode === 'auto' && (
               <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    主页链接 <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={profileUrl}
-                    onChange={(e) => setProfileUrl(e.target.value)}
-                    disabled={fetching || generating}
-                    placeholder="https://www.xiaohongshu.com/user/profile/..."
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 disabled:bg-gray-50 disabled:text-gray-400"
-                  />
-                </div>
+                <UrlInput
+                  mode="profile"
+                  value={profileUrl}
+                  onChange={setProfileUrl}
+                  disabled={fetching || generating}
+                  single
+                />
 
                 <CookieInput
                   value={xhsCookie}
