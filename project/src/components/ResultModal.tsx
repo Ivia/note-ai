@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import SectionBlock from './SectionBlock'
+import MarkdownView from './MarkdownView'
+import { mdToText } from '../lib/mdToText'
 
 interface Sections {
   titles: string
@@ -55,7 +57,7 @@ export default function ResultModal({
   if (!open) return null
 
   async function handleCopyAll() {
-    await navigator.clipboard.writeText(rawOutput)
+    await navigator.clipboard.writeText(mdToText(rawOutput))
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
@@ -93,9 +95,7 @@ export default function ResultModal({
 
           {/* 3. 生成中：实时展示流式原文 */}
           {!error && generating && rawOutput && (
-            <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-              {rawOutput}
-            </div>
+            <MarkdownView content={rawOutput} />
           )}
 
           {/* 4. 生成完成 + 分块解析成功 */}
@@ -110,9 +110,7 @@ export default function ResultModal({
 
           {/* 5. 生成完成 + 分块解析失败（格式不符）：展示原文兜底 */}
           {!error && !generating && rawOutput && !sections?.titles && (
-            <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-              {rawOutput}
-            </div>
+            <MarkdownView content={rawOutput} />
           )}
 
           {/* 6. 生成完成但内容为空 */}
@@ -128,7 +126,7 @@ export default function ResultModal({
             disabled={!rawOutput}
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {copied ? '已复制 ✓' : '复制全部'}
+            {copied ? '已复制 ✓' : '复制文案'}
           </button>
           {!readOnly && (
             <>

@@ -6,6 +6,7 @@ import { fetchUserNotes, coverUrlToBase64, parseDataUrl, validateCookie } from '
 import type { XhsNote, FetchUserNotesResult } from '../lib/xhs'
 import UrlInput, { validateUrls } from './UrlInput'
 import LoginModal from './LoginModal'
+import MarkdownView from './MarkdownView'
 
 interface Props {
   open: boolean
@@ -371,9 +372,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
                 )}
 
                 {!error && rawOutput && (
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {rawOutput}
-                  </div>
+                  <MarkdownView content={rawOutput} />
                 )}
               </div>
 

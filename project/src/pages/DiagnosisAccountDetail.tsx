@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import type { DiagnosisRecord } from '../lib/store'
+import MarkdownView from '../components/MarkdownView'
 
 function formatDate(ts: number) {
   const d = new Date(ts)
@@ -55,10 +56,8 @@ function RecordRow({ record, onDelete }: { record: DiagnosisRecord; onDelete: ()
       </div>
 
       {expanded && (
-        <div className="px-4 pb-4 border-t border-gray-100">
-          <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed pt-3">
-            {record.content}
-          </div>
+        <div className="px-4 pb-4 border-t border-gray-100 pt-3">
+          <MarkdownView content={record.content} />
         </div>
       )}
     </div>

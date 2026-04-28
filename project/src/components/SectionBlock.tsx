@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import MarkdownView from './MarkdownView'
+import { mdToText } from '../lib/mdToText'
 
 interface Props {
   title: string
@@ -10,7 +11,7 @@ export default function SectionBlock({ title, content }: Props) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(content)
+    await navigator.clipboard.writeText(mdToText(content))
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }

@@ -4,6 +4,7 @@ import { useStore } from '../lib/store'
 import { callClaude, friendlyError } from '../lib/claude'
 import { buildStartupNotesPrompt } from '../lib/prompts/startup'
 import ResultModal from '../components/ResultModal'
+import MarkdownView from '../components/MarkdownView'
 
 function parseSections(raw: string) {
   const get = (heading: string) => {
@@ -131,9 +132,7 @@ export default function StartupDetail() {
 
       {/* 起号计划内容 */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-          {record.content}
-        </div>
+        <MarkdownView content={record.content} />
       </div>
 
       {/* 生成起号笔记 */}

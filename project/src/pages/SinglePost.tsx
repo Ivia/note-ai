@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useStore } from '../lib/store'
 import type { HistoryItem } from '../lib/store'
 import SinglePostModal from '../components/SinglePostModal'
+import MarkdownView from '../components/MarkdownView'
+import { mdToText } from '../lib/mdToText'
 
 function formatDate(ts: number) {
   return new Date(ts).toLocaleString('zh-CN', {
@@ -15,7 +17,7 @@ function DetailView({ item, onBack }: { item: HistoryItem; onBack: () => void })
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(item.content)
+    await navigator.clipboard.writeText(mdToText(item.content))
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
@@ -75,7 +77,7 @@ function DetailView({ item, onBack }: { item: HistoryItem; onBack: () => void })
           onClick={handleCopy}
           className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50"
         >
-          {copied ? '已复制 ✓' : '复制 Markdown'}
+          {copied ? '已复制 ✓' : '复制文案'}
         </button>
         <button
           onClick={handleExport}
@@ -90,8 +92,8 @@ function DetailView({ item, onBack }: { item: HistoryItem; onBack: () => void })
           删除
         </button>
       </div>
-      <div className="bg-white border border-gray-200 rounded-xl p-4 whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
-        {item.content}
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <MarkdownView content={item.content} />
       </div>
     </div>
   )

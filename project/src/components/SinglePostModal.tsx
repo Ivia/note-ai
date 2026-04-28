@@ -4,6 +4,8 @@ import { callClaude, friendlyError } from '../lib/claude'
 import { buildSinglePostPrompt, STYLE_WRITING, STYLE_CONTENT } from '../lib/prompts/singlePost'
 import UrlInput, { validateUrls } from './UrlInput'
 import LoginModal from './LoginModal'
+import MarkdownView from './MarkdownView'
+import { mdToText } from '../lib/mdToText'
 import { fetchNoteContent, coverUrlToBase64, parseDataUrl, validateCookie } from '../lib/xhs'
 import type { NoteContent } from '../lib/xhs'
 
@@ -421,9 +423,7 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
                   <p className="text-xs text-gray-300 text-right">已用时 {elapsed}s</p>
                 )}
                 {!error && rawOutput && (
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {rawOutput}
-                  </div>
+                  <MarkdownView content={rawOutput} />
                 )}
               </div>
 

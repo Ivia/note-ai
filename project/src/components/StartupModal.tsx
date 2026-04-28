@@ -4,6 +4,7 @@ import { callClaude, friendlyError } from '../lib/claude'
 import { DIRECTIONS, GOALS, buildStartupPrompt } from '../lib/prompts/startup'
 import UrlInput, { validateUrls } from './UrlInput'
 import LoginModal from './LoginModal'
+import MarkdownView from './MarkdownView'
 import { fetchUserNotes, coverUrlToBase64, parseDataUrl, validateCookie } from '../lib/xhs'
 import type { XhsNote } from '../lib/xhs'
 
@@ -406,9 +407,7 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
                 )}
 
                 {!error && rawOutput && (
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {rawOutput}
-                  </div>
+                  <MarkdownView content={rawOutput} />
                 )}
               </div>
 

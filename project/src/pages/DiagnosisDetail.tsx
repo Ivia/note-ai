@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
+import MarkdownView from '../components/MarkdownView'
 
 function formatDate(ts: number) {
   return new Date(ts).toLocaleString('zh-CN', {
@@ -44,9 +45,7 @@ export default function DiagnosisDetail() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-          {record.content}
-        </div>
+        <MarkdownView content={record.content} />
       </div>
     </div>
   )
