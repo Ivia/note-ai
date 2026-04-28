@@ -98,13 +98,12 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* 各 provider 的 key 输入 */}
+      {/* 当前模型的 key 输入 */}
       <div className="space-y-5">
-        {PROVIDERS.map((p) => (
-          <div key={p.id} className={activeModel !== p.id ? 'opacity-40' : ''}>
+        {PROVIDERS.filter((p) => p.id === activeModel).map((p) => (
+          <div key={p.id}>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {p.label} API Key
-              {activeModel !== p.id && <span className="ml-1 text-gray-400 font-normal text-xs">（未选中）</span>}
             </label>
             <div className="flex gap-2">
               <input
@@ -132,19 +131,21 @@ export default function Settings() {
         ))}
 
         {/* Claude 独有的 Base URL */}
-        <div className={activeModel !== 'claude' ? 'opacity-40' : ''}>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Claude Base URL
-            <span className="ml-1 text-gray-400 font-normal">（企业版 / 代理填写，个人版留空）</span>
-          </label>
-          <input
-            type="text"
-            value={draftUrl}
-            onChange={(e) => { setDraftUrl(e.target.value); setTestResult(null) }}
-            placeholder="https://your-proxy.example.com"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 font-mono"
-          />
-        </div>
+        {activeModel === 'claude' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Claude Base URL
+              <span className="ml-1 text-gray-400 font-normal">（企业版 / 代理填写，个人版留空）</span>
+            </label>
+            <input
+              type="text"
+              value={draftUrl}
+              onChange={(e) => { setDraftUrl(e.target.value); setTestResult(null) }}
+              placeholder="https://your-proxy.example.com"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 font-mono"
+            />
+          </div>
+        )}
 
         {testResult && (
           <p className={`text-sm ${testResult.ok ? 'text-green-700' : 'text-red-600'}`}>
