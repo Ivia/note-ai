@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../lib/store'
-import { callClaude, friendlyError } from '../lib/claude'
+import { callAI, friendlyError } from '../lib/ai'
 import { buildSinglePostPrompt, STYLE_WRITING, STYLE_CONTENT } from '../lib/prompts/singlePost'
 import UrlInput, { validateUrls } from './UrlInput'
 import LoginModal from './LoginModal'
@@ -32,7 +32,7 @@ function formatFetchedNotes(notes: NoteContent[]): string {
 }
 
 export default function SinglePostModal({ open, onClose, onSaved }: Props) {
-  const { apiKey, baseUrl, addHistory, xhsCookie, setXhsCookie } = useStore()
+  const { activeModel, apiKey, baseUrl, deepseekKey, glmKey, addHistory, xhsCookie, setXhsCookie } = useStore()
 
   const [noteType, setNoteType] = useState<NoteType>('image')
   const [topic, setTopic] = useState('')
@@ -84,7 +84,8 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
   if (!open) return null
 
   const hasFetchedNotes = fetchedNotes.length > 0
-  const canGenerate = !generating && !!apiKey && topic.trim() !== '' && selling.trim() !== ''
+  const activeKey = activeModel === 'claude' ? apiKey : activeModel === 'deepseek' ? deepseekKey : glmKey
+  const canGenerate = !generating && !!activeKey && topic.trim() !== '' && selling.trim() !== ''
 
   async function doFetchNotes(cookie: string) {
     const { urls, errors } = validateUrls(refUrls, 'note')
@@ -161,9 +162,10 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
     })
 
     try {
-      await callClaude({
-        apiKey,
-        baseUrl: baseUrl || undefined,
+      await callAI({
+        provider: activeModel,
+        apiKey: activeKey,
+        baseUrl: activeModel === 'claude' ? baseUrl || undefined : undefined,
         system,
         userMessage: user,
         images,
@@ -218,7 +220,7 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
           <div className="flex flex-1 overflow-hidden">
             {/* 左：输入区 */}
             <div className="w-80 shrink-0 border-r border-gray-100 overflow-y-auto px-5 py-4 space-y-4">
-              {!apiKey && (
+              {!activeKey && (
                 <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                   ⚠️ 请先在设置页填入 API Key
                 </p>

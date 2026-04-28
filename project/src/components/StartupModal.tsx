@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../lib/store'
-import { callClaude, friendlyError } from '../lib/claude'
+import { callAI, friendlyError } from '../lib/ai'
 import { DIRECTIONS, GOALS, buildStartupPrompt } from '../lib/prompts/startup'
 import UrlInput, { validateUrls } from './UrlInput'
 import LoginModal from './LoginModal'
@@ -31,7 +31,7 @@ function formatFetchedProfile(notes: XhsNote[]): string {
 }
 
 export default function StartupModal({ open, onClose, onSaved }: Props) {
-  const { apiKey, baseUrl, addStartupRecord, xhsCookie, setXhsCookie } = useStore()
+  const { activeModel, apiKey, baseUrl, deepseekKey, glmKey, addStartupRecord, xhsCookie, setXhsCookie } = useStore()
 
   const [direction, setDirection] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -87,7 +87,8 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
   }
 
   const hasFetchedNotes = fetchedNotes.length > 0
-  const canGenerate = !generating && !!apiKey && direction.trim() !== '' && !!goal
+  const activeKey = activeModel === 'claude' ? apiKey : activeModel === 'deepseek' ? deepseekKey : glmKey
+  const canGenerate = !generating && !!activeKey && direction.trim() !== '' && !!goal
 
   async function doFetchProfile(cookie: string) {
     setRefFetchError('')
@@ -154,9 +155,10 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
     })
 
     try {
-      await callClaude({
-        apiKey,
-        baseUrl: baseUrl || undefined,
+      await callAI({
+        provider: activeModel,
+        apiKey: activeKey,
+        baseUrl: activeModel === 'claude' ? baseUrl || undefined : undefined,
         system,
         userMessage: user,
         images,
@@ -212,7 +214,7 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
           <div className="flex flex-1 overflow-hidden">
             {/* 左：输入区 */}
             <div className="w-80 shrink-0 border-r border-gray-100 overflow-y-auto px-5 py-4 space-y-5">
-              {!apiKey && (
+              {!activeKey && (
                 <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                   ⚠️ 请先在设置页填入 API Key
                 </p>

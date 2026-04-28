@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
-import { callClaude, friendlyError } from '../lib/claude'
+import { callAI, friendlyError } from '../lib/ai'
 import { buildStartupNotesPrompt } from '../lib/prompts/startup'
 import ResultModal from '../components/ResultModal'
 import MarkdownView from '../components/MarkdownView'
@@ -37,7 +37,8 @@ const MODEL = 'claude-sonnet-4-6'
 export default function StartupDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { startupRecords, startupNotes, addStartupNote, deleteStartupNote, apiKey, baseUrl } = useStore()
+  const { activeModel, startupRecords, startupNotes, addStartupNote, deleteStartupNote, apiKey, baseUrl, deepseekKey, glmKey } = useStore()
+  const activeKey = activeModel === 'claude' ? apiKey : activeModel === 'deepseek' ? deepseekKey : glmKey
   const record = startupRecords.find((r) => r.id === id)
   const myNotes = startupNotes.filter((n) => n.startupId === id)
 
@@ -63,7 +64,7 @@ export default function StartupDetail() {
   }
 
   async function handleGenerateNotes() {
-    if (!apiKey) return
+    if (!activeKey) return
     setError('')
     setRawOutput('')
     setSavedToHistory(false)
@@ -78,9 +79,10 @@ export default function StartupDetail() {
     })
 
     try {
-      await callClaude({
-        apiKey,
-        baseUrl: baseUrl || undefined,
+      await callAI({
+        provider: activeModel,
+        apiKey: activeKey,
+        baseUrl: activeModel === 'claude' ? baseUrl || undefined : undefined,
         system,
         userMessage: user,
         onChunk: (chunk) => setRawOutput((prev) => prev + chunk),
@@ -154,12 +156,12 @@ export default function StartupDetail() {
             </label>
           ))}
         </div>
-        {!apiKey && (
+        {!activeKey && (
           <p className="text-xs text-amber-600">⚠️ 请先在设置页填入 API Key</p>
         )}
         <button
           onClick={handleGenerateNotes}
-          disabled={!apiKey || generating}
+          disabled={!activeKey || generating}
           className="w-full py-2.5 bg-rose-500 text-white rounded-lg font-medium text-sm hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           ✨ 生成笔记

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../lib/store'
-import { callClaude, friendlyError } from '../lib/claude'
+import { callAI, friendlyError } from '../lib/ai'
 import { buildDiagnosisPrompt } from '../lib/prompts/diagnosis'
 import { fetchUserNotes, coverUrlToBase64, parseDataUrl, validateCookie } from '../lib/xhs'
 import type { XhsNote, FetchUserNotesResult } from '../lib/xhs'
@@ -35,7 +35,7 @@ function countNotes(raw: string) {
 }
 
 export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
-  const { apiKey, baseUrl, addDiagnosisRecord, xhsCookie, setXhsCookie } = useStore()
+  const { activeModel, apiKey, baseUrl, deepseekKey, glmKey, addDiagnosisRecord, xhsCookie, setXhsCookie } = useStore()
 
   const [mode, setMode] = useState<InputMode>('auto')
   const [positioning, setPositioning] = useState('')
@@ -85,7 +85,8 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
 
   const hasFetchedData = fetchedNotes.length > 0
   const hasManualData = notes.trim() !== ''
-  const canGenerate = !generating && !!apiKey && (mode === 'auto' ? hasFetchedData : hasManualData)
+  const activeKey = activeModel === 'claude' ? apiKey : activeModel === 'deepseek' ? deepseekKey : glmKey
+  const canGenerate = !generating && !!activeKey && (mode === 'auto' ? hasFetchedData : hasManualData)
 
   async function doFetch(cookie: string) {
     setFetchError('')
@@ -153,9 +154,10 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
     })
 
     try {
-      await callClaude({
-        apiKey,
-        baseUrl: baseUrl || undefined,
+      await callAI({
+        provider: activeModel,
+        apiKey: activeKey,
+        baseUrl: activeModel === 'claude' ? baseUrl || undefined : undefined,
         system,
         userMessage: user,
         images,
@@ -218,7 +220,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
           <div className="flex flex-1 overflow-hidden">
             {/* 左：输入区 */}
             <div className="w-80 shrink-0 border-r border-gray-100 overflow-y-auto px-5 py-4 space-y-4">
-              {!apiKey && (
+              {!activeKey && (
                 <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                   ⚠️ 请先在设置页填入 API Key
                 </p>
