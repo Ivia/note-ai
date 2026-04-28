@@ -47,8 +47,10 @@ export async function callClaude({ apiKey, baseUrl, system, userMessage, images,
 
     await stream.finalMessage()
     if (full) return full
-  } catch {
-    // 流式失败，降级到非流式
+  } catch (e) {
+    // 仅 "no chunks" 类网关兼容问题降级到非流式，其他错误直接抛出
+    const msg = e instanceof Error ? e.message : ''
+    if (!msg.includes('no chunks') && !msg.includes('empty')) throw e
   }
 
   // 非流式兜底（企业版网关兼容）
@@ -68,9 +70,13 @@ export function friendlyError(err: unknown): string {
   if (err instanceof Anthropic.APIError) {
     if (err.status === 401) return 'API Key 无效，请检查后重试'
     if (err.status === 402) return '账户余额不足，请在 Anthropic Console 充值'
+    if (err.status === 429) return '请求频率超限，请稍后重试'
+    if (!err.status || err.message.toLowerCase().includes('connection')) {
+      return '网络连接失败，请检查网络（Anthropic API 需要科学上网）'
+    }
     return `API 错误 ${err.status}：${err.message}`
   }
-  if (err instanceof Error && err.message.includes('fetch')) {
+  if (err instanceof Error && (err.message.includes('fetch') || err.message.includes('Failed'))) {
     return '网络连接失败，请检查网络（Anthropic API 需要科学上网）'
   }
   return String(err)
