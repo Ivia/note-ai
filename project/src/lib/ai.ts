@@ -21,7 +21,7 @@ const PROVIDER_CONFIG: Record<Exclude<ModelProvider, 'claude'>, { baseUrl: strin
   },
   glm: {
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    model: 'glm-4v-flash',
+    model: 'glm-4.6v-flash',
   },
 }
 
@@ -133,5 +133,5 @@ export function friendlyError(err: unknown): string {
 export const MODEL_LABELS: Record<ModelProvider, string> = {
   claude: 'claude-sonnet-4-6',
   deepseek: 'deepseek-chat',
-  glm: 'glm-4v-flash',
+  glm: 'glm-4.6v-flash',
 }
