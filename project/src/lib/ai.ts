@@ -38,14 +38,18 @@ async function callOpenAICompat({ baseUrl, model, apiKey, system, userMessage, i
     | { type: 'text'; text: string }
     | { type: 'image_url'; image_url: { url: string } }
 
-  const userContent: ContentPart[] = [{ type: 'text', text: userMessage }]
+  let userContent: string | ContentPart[]
   if (images?.length) {
+    const parts: ContentPart[] = [{ type: 'text', text: userMessage }]
     for (const img of images) {
-      userContent.push({
+      parts.push({
         type: 'image_url',
         image_url: { url: `data:${img.mediaType};base64,${img.data}` },
       })
     }
+    userContent = parts
+  } else {
+    userContent = userMessage
   }
 
   const res = await fetch(`${baseUrl}/chat/completions`, {
@@ -57,7 +61,7 @@ async function callOpenAICompat({ baseUrl, model, apiKey, system, userMessage, i
     body: JSON.stringify({
       model,
       stream: true,
-      max_tokens: 8192,
+      max_tokens: 4096,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: userContent },
