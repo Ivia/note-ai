@@ -32,7 +32,7 @@ function formatFetchedNotes(notes: NoteContent[]): string {
 }
 
 export default function SinglePostModal({ open, onClose, onSaved }: Props) {
-  const { activeModel, apiKey, baseUrl, deepseekKey, glmKey, addHistory, xhsCookie, setXhsCookie } = useStore()
+  const { activeModel, apiKey, baseUrl, deepseekKey, addHistory, xhsCookie, setXhsCookie } = useStore()
 
   const [noteType, setNoteType] = useState<NoteType>('image')
   const [topic, setTopic] = useState('')
@@ -84,7 +84,7 @@ export default function SinglePostModal({ open, onClose, onSaved }: Props) {
   if (!open) return null
 
   const hasFetchedNotes = fetchedNotes.length > 0
-  const activeKey = activeModel === 'claude' ? apiKey : activeModel === 'deepseek' ? deepseekKey : glmKey
+  const activeKey = activeModel === 'claude' ? apiKey : deepseekKey
   const canGenerate = !generating && !!activeKey && topic.trim() !== '' && selling.trim() !== ''
 
   async function doFetchNotes(cookie: string) {

@@ -46,7 +46,7 @@ export interface StartupRecord {
   content: string
 }
 
-export type ModelProvider = 'claude' | 'deepseek' | 'glm'
+export type ModelProvider = 'claude' | 'deepseek'
 
 interface Store {
   activeModel: ModelProvider
@@ -57,8 +57,6 @@ interface Store {
   setBaseUrl: (u: string) => void
   deepseekKey: string
   setDeepseekKey: (k: string) => void
-  glmKey: string
-  setGlmKey: (k: string) => void
   xhsCookie: string
   setXhsCookie: (c: string) => void
   history: HistoryItem[]
@@ -87,8 +85,6 @@ export const useStore = create<Store>()(
       setBaseUrl: (u) => set({ baseUrl: u }),
       deepseekKey: '',
       setDeepseekKey: (k) => set({ deepseekKey: k }),
-      glmKey: '',
-      setGlmKey: (k) => set({ glmKey: k }),
       xhsCookie: '',
       setXhsCookie: (c) => set({ xhsCookie: c }),
       history: [],

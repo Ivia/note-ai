@@ -35,7 +35,7 @@ function countNotes(raw: string) {
 }
 
 export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
-  const { activeModel, apiKey, baseUrl, deepseekKey, glmKey, addDiagnosisRecord, xhsCookie, setXhsCookie } = useStore()
+  const { activeModel, apiKey, baseUrl, deepseekKey, addDiagnosisRecord, xhsCookie, setXhsCookie } = useStore()
 
   const [mode, setMode] = useState<InputMode>('auto')
   const [positioning, setPositioning] = useState('')
@@ -85,7 +85,7 @@ export default function DiagnosisModal({ open, onClose, onSaved }: Props) {
 
   const hasFetchedData = fetchedNotes.length > 0
   const hasManualData = notes.trim() !== ''
-  const activeKey = activeModel === 'claude' ? apiKey : activeModel === 'deepseek' ? deepseekKey : glmKey
+  const activeKey = activeModel === 'claude' ? apiKey : deepseekKey
   const canGenerate = !generating && !!activeKey && (mode === 'auto' ? hasFetchedData : hasManualData)
 
   async function doFetch(cookie: string) {

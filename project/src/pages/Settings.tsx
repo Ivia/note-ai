@@ -6,7 +6,6 @@ import { callAI, friendlyError, MODEL_LABELS } from '../lib/ai'
 const PROVIDERS: { id: ModelProvider; label: string; placeholder: string; note: string }[] = [
   { id: 'claude', label: 'Claude', placeholder: 'sk-ant-...', note: '访问 console.anthropic.com 创建，需科学上网' },
   { id: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...', note: '访问 platform.deepseek.com 创建，注册送免费额度' },
-  { id: 'glm', label: 'GLM-4.6V-Flash', placeholder: '...', note: '访问 bigmodel.cn 创建，完全免费' },
 ]
 
 export default function Settings() {
@@ -14,14 +13,12 @@ export default function Settings() {
     activeModel, setActiveModel,
     apiKey, setApiKey, baseUrl, setBaseUrl,
     deepseekKey, setDeepseekKey,
-    glmKey, setGlmKey,
   } = useStore()
 
   const [draftKey, setDraftKey] = useState(apiKey)
   const [draftUrl, setDraftUrl] = useState(baseUrl)
   const [draftDeepseek, setDraftDeepseek] = useState(deepseekKey)
-  const [draftGlm, setDraftGlm] = useState(glmKey)
-  const [showKeys, setShowKeys] = useState<Record<ModelProvider, boolean>>({ claude: false, deepseek: false, glm: false })
+  const [showKeys, setShowKeys] = useState<Record<ModelProvider, boolean>>({ claude: false, deepseek: false })
 
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
@@ -29,8 +26,7 @@ export default function Settings() {
 
   function getCurrentKey(p: ModelProvider) {
     if (p === 'claude') return draftKey
-    if (p === 'deepseek') return draftDeepseek
-    return draftGlm
+    return draftDeepseek
   }
 
   async function handleTest() {
@@ -59,7 +55,6 @@ export default function Settings() {
     setApiKey(draftKey.trim())
     setBaseUrl(draftUrl.trim())
     setDeepseekKey(draftDeepseek.trim())
-    setGlmKey(draftGlm.trim())
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -108,7 +103,7 @@ export default function Settings() {
             <div className="flex gap-2">
               <input
                 type={showKeys[p.id] ? 'text' : 'password'}
-                value={p.id === 'claude' ? draftKey : p.id === 'deepseek' ? draftDeepseek : draftGlm}
+                value={p.id === 'claude' ? draftKey : draftDeepseek}
                 onChange={(e) => {
                   setTestResult(null)
                   if (p.id === 'claude') setDraftKey(e.target.value)

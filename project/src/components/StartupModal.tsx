@@ -31,7 +31,7 @@ function formatFetchedProfile(notes: XhsNote[]): string {
 }
 
 export default function StartupModal({ open, onClose, onSaved }: Props) {
-  const { activeModel, apiKey, baseUrl, deepseekKey, glmKey, addStartupRecord, xhsCookie, setXhsCookie } = useStore()
+  const { activeModel, apiKey, baseUrl, deepseekKey, addStartupRecord, xhsCookie, setXhsCookie } = useStore()
 
   const [direction, setDirection] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -87,7 +87,7 @@ export default function StartupModal({ open, onClose, onSaved }: Props) {
   }
 
   const hasFetchedNotes = fetchedNotes.length > 0
-  const activeKey = activeModel === 'claude' ? apiKey : activeModel === 'deepseek' ? deepseekKey : glmKey
+  const activeKey = activeModel === 'claude' ? apiKey : deepseekKey
   const canGenerate = !generating && !!activeKey && direction.trim() !== '' && !!goal
 
   async function doFetchProfile(cookie: string) {

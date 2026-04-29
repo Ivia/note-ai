@@ -37,8 +37,8 @@ const MODEL = 'claude-sonnet-4-6'
 export default function StartupDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { activeModel, startupRecords, startupNotes, addStartupNote, deleteStartupNote, apiKey, baseUrl, deepseekKey, glmKey } = useStore()
-  const activeKey = activeModel === 'claude' ? apiKey : activeModel === 'deepseek' ? deepseekKey : glmKey
+  const { activeModel, startupRecords, startupNotes, addStartupNote, deleteStartupNote, apiKey, baseUrl, deepseekKey } = useStore()
+  const activeKey = activeModel === 'claude' ? apiKey : deepseekKey
   const record = startupRecords.find((r) => r.id === id)
   const myNotes = startupNotes.filter((n) => n.startupId === id)
 
