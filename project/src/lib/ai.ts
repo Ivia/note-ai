@@ -123,7 +123,6 @@ export function friendlyError(err: unknown): string {
     const msg = err.message
     if (msg.includes('401')) return 'API Key 无效，请检查后重试'
     if (msg.includes('402') || msg.includes('insufficient')) return '账户余额不足，请充值'
-    if (msg.includes('429')) return '请求频率超限（GLM 免费版 QPS=1），请等几秒后重试'
     if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) return '网络连接失败，请检查网络'
     if (msg.startsWith('API 错误')) return msg
   }
